@@ -158,7 +158,7 @@ KEY SUBS: ${subs || 'none'}`;
 // ── GENERATE & POST ──────────────────────────────────────────
 async function generateVerdict(matchData) {
   const msg = await claude.messages.create({
-    model: 'claude-sonnet-4-20250514',
+    model: 'claude-sonnet-4-5',
     max_tokens: 200,
     system: COACH_PERSONA,
     messages: [{ role: 'user', content: `Write ONE post-match tweet. Be specific. Under 260 chars.\n\n${matchData}` }]
