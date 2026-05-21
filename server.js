@@ -180,14 +180,36 @@ async function postToTwitter(text) {
 }
 
 // ── MAIN BOT LOOP ────────────────────────────────────────────
+const MAJOR_LEAGUES = [
+  'FIFA World Cup', 'UEFA Champions League', 'UEFA Europa League',
+  'Premier League', 'La Liga', 'Serie A', 'Bundesliga', 'Ligue 1',
+  'UEFA Nations League', 'Copa America', 'Euro', 'World Cup'
+];
+
+function isMajorCompetition(name) {
+  if (!name) return false;
+  return MAJOR_LEAGUES.some(l => name.includes(l));
+}
+
 async function runMatchBot() {
   console.log(`🔍 Checking matches... ${new Date().toLocaleTimeString('nl-NL')}`);
   const data = loadData();
   const matches = await getFinishedMatches();
 
+  let postsThisRun = 0;
+
   for (const fixture of matches) {
+    if (postsThisRun >= 3) break; // Max 3 posts per check
+
     const id = String(fixture.fixture.id);
     if (data.postedFixtureIds.includes(id)) continue;
+
+    // Only major competitions
+    const compName = fixture.league?.name || '';
+    if (!isMajorCompetition(compName)) {
+      data.postedFixtureIds.push(id); // Mark as seen but don't post
+      continue;
+    }
 
     const { stats, events } = await getMatchStats(id);
     const matchPrompt = buildMatchPrompt(fixture, stats, events);
@@ -209,10 +231,14 @@ async function runMatchBot() {
     data.postedFixtureIds.push(id);
     data.stats.totalPosts++;
     data.stats.matchesCovered++;
+    postsThisRun++;
     saveData(data);
 
-    await new Promise(r => setTimeout(r, 3000));
+    await new Promise(r => setTimeout(r, 5000));
   }
+
+  // Save all seen fixture IDs even if not posted
+  saveData(data);
 
   // Update upcoming matches
   const upcoming = await getUpcomingMatches();
@@ -228,13 +254,14 @@ async function runMatchBot() {
 
 // ── HOT TAKES ────────────────────────────────────────────────
 const hotTakes = [
-  "Another day. Another manager proves The Coach right. $COACH 📋",
-  "Watching last night's tape. Four tactical errors. Four. Nobody asked. They'll regret it. $COACH",
-  "The World Cup is coming. 32 coaches. 31 disappointments incoming. The Coach is ready. $COACH",
-  "People keep asking who the best coach in football is right now. The answer hasn't changed. $COACH",
-  "Transfer window open. Every wrong signing was predictable. Every right one was obvious. Nobody listens. $COACH",
-  "Guardiola overthinks. Ancelotti underprepares. Klopp overruns. The Coach simply wins. $COACH 📋",
-  "64 World Cup matches. 64 verdicts. The Coach will be here for all of them. $COACH",
+  "21 days until the World Cup. 32 coaches. 31 of them will disappoint. The Coach is ready. $COACH",
+  "The World Cup squads are almost final. The Coach has already identified 14 selection mistakes. Nobody asked. $COACH 📋",
+  "June 11. The World Cup begins. The Coach will be watching every single match. No coach is safe. $COACH",
+  "Every four years the world's best coaches gather and prove they need The Coach. June 11. $COACH",
+  "World Cup 2026 group stage predictions dropping soon. The Coach has done the analysis. It's not complicated. $COACH",
+  "Watching World Cup qualification tape. Already spotted three coaches who will be embarrassed in June. $COACH 📋",
+  "64 World Cup matches. 64 automatic verdicts. The Coach posts within minutes of every final whistle. $COACH",
+  "The World Cup draw is set. The Coach has already mapped every tactical error that will be made. $COACH",
 ];
 
 async function postHotTake() {
@@ -257,9 +284,8 @@ async function postHotTake() {
 }
 
 // ── CRON JOBS ────────────────────────────────────────────────
-cron.schedule('*/15 * * * *', runMatchBot);                    // Check matches every 15 min
-cron.schedule('0 9 * * *', postHotTake);                      // Daily 9am hot take
-cron.schedule('0 21 * * *', postHotTake);                     // Daily 9pm hot take
+cron.schedule('*/15 * * * *', runMatchBot);       // Check matches every 15 min
+cron.schedule('0 18 * * *', postHotTake);         // 1x per day at 6pm only
 
 // ── API ROUTES ───────────────────────────────────────────────
 
