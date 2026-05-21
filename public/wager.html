@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>$COACH Wager — The Coach</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Grotesk:wght@300;400;500;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --gold: #C8971A;
+      --gold-bright: #F0B429;
+      --black: #000000;
+      --card: #0F0F0F;
+      --border: #1C1C1C;
+      --border-bright: #333333;
+      --white: #FFFFFF;
+      --grey: #666666;
+      --green: #00C853;
+      --red: #FF3D3D;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { background: #000; }
+    body {
+      background: #000;
+      color: var(--white);
+      font-family: 'Space Grotesk', sans-serif;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* NAV */
+    nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 2rem;
+      height: 56px;
+      background: rgba(0,0,0,0.95);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .nav-logo {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      text-decoration: none;
+    }
+
+    .nav-logo-text {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.4rem;
+      color: var(--white);
+    }
+
+    .nav-badge {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem;
+      color: var(--gold);
+      background: rgba(200,151,26,0.12);
+      border: 1px solid rgba(200,151,26,0.3);
+      padding: 0.2rem 0.5rem;
+    }
+
+    .wallet-btn {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #000;
+      background: var(--gold);
+      border: none;
+      padding: 0.5rem 1.2rem;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .wallet-btn:hover { background: var(--gold-bright); }
+    .wallet-btn.connected { background: var(--green); color: #000; }
+
+    /* HERO */
+    .hero {
+      padding: 4rem 2rem 3rem;
+      border-bottom: 1px solid var(--border);
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .hero-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      color: var(--gold);
+      margin-bottom: 1rem;
+    }
+
+    .hero-title {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(3rem, 8vw, 7rem);
+      line-height: 0.88;
+      color: var(--white);
+      margin-bottom: 1rem;
+    }
+
+    .hero-title span { color: var(--gold); }
+
+    .hero-sub {
+      font-size: 1rem;
+      color: var(--grey);
+      max-width: 500px;
+      line-height: 1.6;
+    }
+
+    /* STATS BAR */
+    .stats-bar {
+      display: flex;
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      background: #000;
+    }
+
+    .stat-item {
+      flex: 1;
+      padding: 1rem 2rem;
+      border-right: 1px solid var(--border);
+    }
+
+    .stat-item:last-child { border-right: none; }
+
+    .stat-num {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.8rem;
+      color: var(--gold);
+      line-height: 1;
+    }
+
+    .stat-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.62rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--grey);
+    }
+
+    /* MAIN LAYOUT */
+    .main {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 3rem 2rem;
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      gap: 2rem;
+      align-items: start;
+    }
+
+    /* MATCHES LIST */
+    .section-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.68rem;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      color: var(--gold);
+      margin-bottom: 1.5rem;
+    }
+
+    .matches-list {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
+    }
+
+    .match-card {
+      background: #000;
+      padding: 1.5rem;
+      cursor: pointer;
+      transition: background 0.15s;
+      border-left: 3px solid transparent;
+    }
+
+    .match-card:hover { background: #0A0A0A; }
+    .match-card.active { border-left-color: var(--gold); background: #0A0A0A; }
+
+    .match-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+
+    .match-teams {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.4rem;
+      color: var(--white);
+      line-height: 1;
+    }
+
+    .match-meta {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.65rem;
+      color: var(--grey);
+      letter-spacing: 0.1em;
+      text-align: right;
+    }
+
+    .match-date {
+      color: var(--gold);
+      display: block;
+    }
+
+    .odds-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 0.5rem;
+    }
+
+    .odd-btn {
+      background: #000;
+      border: 1px solid var(--border);
+      color: var(--white);
+      padding: 0.6rem;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.15s;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .odd-btn:hover { border-color: var(--gold); }
+    .odd-btn.selected { background: var(--gold); color: #000; border-color: var(--gold); }
+
+    .odd-label {
+      font-size: 0.65rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      display: block;
+      opacity: 0.7;
+      margin-bottom: 0.2rem;
+    }
+
+    .odd-value {
+      font-size: 1.1rem;
+      font-weight: 700;
+    }
+
+    .match-volume {
+      margin-top: 0.75rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.65rem;
+      color: var(--grey);
+      letter-spacing: 0.1em;
+    }
+
+    /* BET SLIP */
+    .bet-slip {
+      background: #0F0F0F;
+      border: 1px solid var(--border);
+      position: sticky;
+      top: 70px;
+    }
+
+    .bet-slip-header {
+      padding: 1.2rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.1rem;
+      letter-spacing: 0.1em;
+      color: var(--white);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .bet-slip-body { padding: 1.5rem; }
+
+    .slip-empty {
+      text-align: center;
+      padding: 2rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--grey);
+      letter-spacing: 0.1em;
+    }
+
+    .slip-match {
+      font-size: 0.85rem;
+      color: var(--white);
+      font-weight: 600;
+      margin-bottom: 0.3rem;
+    }
+
+    .slip-outcome {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      color: var(--gold);
+      letter-spacing: 0.1em;
+      margin-bottom: 1.2rem;
+    }
+
+    .slip-field-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.62rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--grey);
+      margin-bottom: 0.4rem;
+    }
+
+    .slip-input {
+      width: 100%;
+      background: #000;
+      border: 1px solid var(--border);
+      color: var(--gold);
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 2rem;
+      padding: 0.6rem 0.8rem;
+      outline: none;
+      transition: border-color 0.15s;
+      margin-bottom: 1rem;
+    }
+
+    .slip-input:focus { border-color: var(--gold); }
+
+    .slip-return {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.8rem;
+      color: var(--green);
+      margin-bottom: 1.5rem;
+    }
+
+    .slip-return-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.62rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--grey);
+      margin-bottom: 0.3rem;
+    }
+
+    .place-bet-btn {
+      width: 100%;
+      background: var(--gold);
+      color: #000;
+      border: none;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 1rem;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .place-bet-btn:hover { background: var(--gold-bright); }
+    .place-bet-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .treasury-info {
+      margin-top: 1rem;
+      padding: 0.75rem;
+      background: #000;
+      border: 1px solid var(--border);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.62rem;
+      color: var(--grey);
+      line-height: 1.6;
+      letter-spacing: 0.05em;
+      word-break: break-all;
+    }
+
+    /* MY BETS */
+    .my-bets {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 2rem 3rem;
+    }
+
+    .bets-table {
+      width: 100%;
+      border-collapse: collapse;
+      border: 1px solid var(--border);
+    }
+
+    .bets-table th {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.62rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--grey);
+      padding: 0.8rem 1rem;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      background: #000;
+    }
+
+    .bets-table td {
+      padding: 0.9rem 1rem;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.85rem;
+      background: #000;
+    }
+
+    .bets-table tr:last-child td { border-bottom: none; }
+    .status-pending { color: var(--gold); }
+    .status-won { color: var(--green); }
+    .status-lost { color: var(--red); }
+
+    .toast {
+      position: fixed;
+      bottom: 2rem;
+      right: 2rem;
+      background: #0F0F0F;
+      border: 1px solid var(--border);
+      padding: 1rem 1.5rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      color: var(--white);
+      z-index: 999;
+      display: none;
+      max-width: 300px;
+      line-height: 1.5;
+    }
+
+    .toast.show { display: block; }
+    .toast.success { border-color: var(--green); }
+    .toast.error { border-color: var(--red); }
+
+    @media (max-width: 768px) {
+      .main { grid-template-columns: 1fr; }
+      .bet-slip { position: static; }
+      .stats-bar { flex-wrap: wrap; }
+      .stat-item { min-width: 50%; border-right: none; border-bottom: 1px solid var(--border); }
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <a href="/" class="nav-logo">
+    <img src="/avatar.png" style="width:28px;height:28px;object-fit:cover;" alt="TC"/>
+    <span class="nav-logo-text">The Coach</span>
+    <span class="nav-badge">$COACH</span>
+  </a>
+  <button class="wallet-btn" id="wallet-btn" onclick="connectWallet()">Connect Wallet</button>
+</nav>
+
+<div class="hero">
+  <div class="hero-label">WC 2026 · $COACH Wagering</div>
+  <h1 class="hero-title">PLACE<br/><span>YOUR BET.</span></h1>
+  <p class="hero-sub">Hold $COACH, pick a match, choose your outcome. The Coach always knows who's going to embarrass themselves.</p>
+</div>
+
+<div class="stats-bar" id="stats-bar">
+  <div class="stat-item">
+    <div class="stat-num" id="stat-total-bets">0</div>
+    <div class="stat-label">Total Bets</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-num" id="stat-volume">0</div>
+    <div class="stat-label">$COACH Volume</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-num">100</div>
+    <div class="stat-label">Min Bet ($COACH)</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-num" id="stat-matches">10</div>
+    <div class="stat-label">Open Matches</div>
+  </div>
+</div>
+
+<div class="main">
+  <!-- MATCHES -->
+  <div>
+    <div class="section-label">Open Matches</div>
+    <div class="matches-list" id="matches-list">
+      <div style="padding:2rem;text-align:center;font-family:'JetBrains Mono',monospace;font-size:0.75rem;color:#666;">Loading matches...</div>
+    </div>
+  </div>
+
+  <!-- BET SLIP -->
+  <div class="bet-slip">
+    <div class="bet-slip-header">
+      <span>Bet Slip</span>
+      <span id="slip-odds" style="color:var(--gold);font-size:0.9rem;"></span>
+    </div>
+    <div class="bet-slip-body" id="bet-slip-body">
+      <div class="slip-empty">Select a match and outcome to place your bet</div>
+    </div>
+  </div>
+</div>
+
+<!-- MY BETS -->
+<div class="my-bets" id="my-bets-section" style="display:none;">
+  <div class="section-label">My Bets</div>
+  <table class="bets-table">
+    <thead>
+      <tr>
+        <th>Match</th>
+        <th>Pick</th>
+        <th>Amount</th>
+        <th>Odds</th>
+        <th>To Win</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody id="my-bets-body"></tbody>
+  </table>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const WAGER_API = 'https://coach-production-0726.up.railway.app';
+const TREASURY = 'DReFFztSXymUsNrKff4e6ozxMbQ3jdV6rCUEuuh9D3ty';
+
+let walletAddress = null;
+let selectedMatch = null;
+let selectedOutcome = null;
+let matches = [];
+
+// ── WALLET ──
+async function connectWallet() {
+  if (window.solana && window.solana.isPhantom) {
+    try {
+      const resp = await window.solana.connect();
+      walletAddress = resp.publicKey.toString();
+      const btn = document.getElementById('wallet-btn');
+      btn.textContent = walletAddress.slice(0,4) + '...' + walletAddress.slice(-4);
+      btn.classList.add('connected');
+      loadMyBets();
+      showToast('Wallet connected!', 'success');
+    } catch(e) {
+      showToast('Connection rejected', 'error');
+    }
+  } else {
+    window.open('https://phantom.app/', '_blank');
+  }
+}
+
+// ── LOAD MATCHES ──
+async function loadMatches() {
+  try {
+    const res = await fetch(`${WAGER_API}/api/wager/matches`);
+    matches = await res.json();
+    renderMatches();
+    loadStats();
+  } catch(e) {
+    console.error('Failed to load matches:', e);
+  }
+}
+
+function renderMatches() {
+  const list = document.getElementById('matches-list');
+  if (!matches.length) {
+    list.innerHTML = '<div style="padding:2rem;text-align:center;font-family:JetBrains Mono,monospace;font-size:0.75rem;color:#666;">No open matches</div>';
+    return;
+  }
+
+  list.innerHTML = matches.map(m => {
+    const date = new Date(m.date);
+    const dateStr = date.toLocaleDateString('en-GB', { day:'numeric', month:'short' });
+    const timeStr = date.toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' }) + ' CET';
+    return `
+      <div class="match-card" id="match-${m.id}" onclick="selectMatch('${m.id}')">
+        <div class="match-header">
+          <div class="match-teams">${m.homeFlag} ${m.home} <span style="color:var(--grey);font-size:1rem;">vs</span> ${m.awayFlag} ${m.away}</div>
+          <div class="match-meta">
+            <span class="match-date">${dateStr} · ${timeStr}</span>
+            <span>${m.competition}</span>
+          </div>
+        </div>
+        <div class="odds-row">
+          <button class="odd-btn" id="odd-${m.id}-home" onclick="selectOutcome(event,'${m.id}','home')">
+            <span class="odd-label">${m.homeFlag} ${m.home}</span>
+            <span class="odd-value">${m.odds.home}×</span>
+          </button>
+          <button class="odd-btn" id="odd-${m.id}-draw" onclick="selectOutcome(event,'${m.id}','draw')">
+            <span class="odd-label">Draw</span>
+            <span class="odd-value">${m.odds.draw}×</span>
+          </button>
+          <button class="odd-btn" id="odd-${m.id}-away" onclick="selectOutcome(event,'${m.id}','away')">
+            <span class="odd-label">${m.awayFlag} ${m.away}</span>
+            <span class="odd-value">${m.odds.away}×</span>
+          </button>
+        </div>
+        <div class="match-volume" id="volume-${m.id}">Loading volume...</div>
+      </div>
+    `;
+  }).join('');
+
+  // Load volumes
+  matches.forEach(m => loadMatchVolume(m.id));
+}
+
+async function loadMatchVolume(matchId) {
+  try {
+    const res = await fetch(`${WAGER_API}/api/wager/bets/match/${matchId}`);
+    const data = await res.json();
+    const el = document.getElementById(`volume-${matchId}`);
+    if (el) el.textContent = `Total wagered: ${data.total.toLocaleString()} $COACH · ${data.bets.length} bets`;
+  } catch(e) {}
+}
+
+function selectMatch(matchId) {
+  document.querySelectorAll('.match-card').forEach(c => c.classList.remove('active'));
+  document.getElementById(`match-${matchId}`)?.classList.add('active');
+  selectedMatch = matches.find(m => m.id === matchId);
+}
+
+function selectOutcome(e, matchId, outcome) {
+  e.stopPropagation();
+  selectMatch(matchId);
+  selectedOutcome = outcome;
+
+  // Update button styles
+  document.querySelectorAll(`[id^="odd-${matchId}"]`).forEach(b => b.classList.remove('selected'));
+  document.getElementById(`odd-${matchId}-${outcome}`)?.classList.add('selected');
+
+  // Update bet slip
+  document.getElementById('slip-odds').textContent = `${selectedMatch.odds[outcome]}×`;
+  updateBetSlip();
+}
+
+function updateBetSlip() {
+  if (!selectedMatch || !selectedOutcome) return;
+
+  const outcomeLabels = {
+    home: `${selectedMatch.homeFlag} ${selectedMatch.home} Win`,
+    draw: 'Draw',
+    away: `${selectedMatch.awayFlag} ${selectedMatch.away} Win`
+  };
+
+  const odds = selectedMatch.odds[selectedOutcome];
+
+  document.getElementById('bet-slip-body').innerHTML = `
+    <div class="slip-match">${selectedMatch.homeFlag} ${selectedMatch.home} vs ${selectedMatch.awayFlag} ${selectedMatch.away}</div>
+    <div class="slip-outcome">📋 ${outcomeLabels[selectedOutcome]} @ ${odds}×</div>
+
+    <div class="slip-field-label">Your Wager ($COACH)</div>
+    <input type="number" class="slip-input" id="bet-amount" value="1000" min="100" oninput="updateReturn()"/>
+
+    <div class="slip-return-label">Potential Return</div>
+    <div class="slip-return" id="potential-return">1,000 $COACH</div>
+
+    <button class="place-bet-btn" onclick="placeBet()">
+      ${walletAddress ? 'Place Bet' : 'Connect Wallet First'}
+    </button>
+
+    <div class="treasury-info">
+      Send $COACH to treasury wallet:<br/>
+      <strong style="color:var(--gold)">${TREASURY}</strong><br/><br/>
+      Your bet is verified automatically on Solana.
+    </div>
+  `;
+
+  updateReturn();
+}
+
+function updateReturn() {
+  if (!selectedMatch || !selectedOutcome) return;
+  const amount = parseInt(document.getElementById('bet-amount')?.value) || 0;
+  const odds = selectedMatch.odds[selectedOutcome];
+  const ret = Math.floor(amount * odds);
+  const el = document.getElementById('potential-return');
+  if (el) el.textContent = ret.toLocaleString() + ' $COACH';
+}
+
+// ── PLACE BET ──
+async function placeBet() {
+  if (!walletAddress) {
+    await connectWallet();
+    return;
+  }
+
+  const amount = parseInt(document.getElementById('bet-amount')?.value);
+  if (!amount || amount < 100) {
+    showToast('Minimum bet is 100 $COACH', 'error');
+    return;
+  }
+
+  // Prompt for tx hash (user sends manually to treasury first)
+  const txHash = prompt(`Step 1: Send ${amount} $COACH to:\n${TREASURY}\n\nStep 2: Paste your transaction hash here:`);
+  if (!txHash) return;
+
+  showToast('Verifying transaction...', '');
+
+  try {
+    const res = await fetch(`${WAGER_API}/api/wager/bet`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        matchId: selectedMatch.id,
+        outcome: selectedOutcome,
+        amount,
+        walletAddress,
+        txHash: txHash.trim()
+      })
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      showToast(`Bet placed! ${amount} $COACH on ${selectedOutcome}. Potential win: ${data.bet.potentialWin.toLocaleString()} $COACH`, 'success');
+      loadMatchVolume(selectedMatch.id);
+      loadMyBets();
+      loadStats();
+    } else {
+      showToast(`Error: ${data.error}`, 'error');
+    }
+  } catch(e) {
+    showToast('Failed to place bet. Try again.', 'error');
+  }
+}
+
+// ── MY BETS ──
+async function loadMyBets() {
+  if (!walletAddress) return;
+  try {
+    const res = await fetch(`${WAGER_API}/api/wager/bets/${walletAddress}`);
+    const bets = await res.json();
+    if (!bets.length) return;
+
+    document.getElementById('my-bets-section').style.display = 'block';
+    document.getElementById('my-bets-body').innerHTML = bets.map(b => `
+      <tr>
+        <td>${b.matchName}</td>
+        <td style="text-transform:capitalize;">${b.outcome}</td>
+        <td>${b.amount.toLocaleString()} $COACH</td>
+        <td>${b.odds}×</td>
+        <td>${b.potentialWin.toLocaleString()} $COACH</td>
+        <td class="status-${b.status}">${b.status.toUpperCase()}</td>
+      </tr>
+    `).join('');
+  } catch(e) {}
+}
+
+// ── STATS ──
+async function loadStats() {
+  try {
+    const res = await fetch(`${WAGER_API}/api/wager/stats`);
+    const stats = await res.json();
+    document.getElementById('stat-total-bets').textContent = stats.totalBets;
+    document.getElementById('stat-volume').textContent = stats.totalVolume.toLocaleString();
+  } catch(e) {}
+}
+
+// ── TOAST ──
+function showToast(msg, type) {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.className = `toast show ${type}`;
+  setTimeout(() => toast.classList.remove('show'), 4000);
+}
+
+// ── INIT ──
+loadMatches();
+</script>
+</body>
+</html>

@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>The Coach — Admin Panel</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #000; color: #fff; font-family: 'Courier New', monospace; padding: 2rem; }
+    h1 { color: #C8971A; margin-bottom: 2rem; font-size: 1.5rem; }
+    h2 { color: #C8971A; margin: 2rem 0 1rem; font-size: 1.1rem; }
+    .card { background: #0f0f0f; border: 1px solid #222; padding: 1.5rem; margin-bottom: 1rem; }
+    input, select { background: #000; border: 1px solid #333; color: #fff; padding: 0.5rem; font-family: monospace; margin-right: 0.5rem; }
+    button { background: #C8971A; color: #000; border: none; padding: 0.5rem 1rem; cursor: pointer; font-family: monospace; font-weight: bold; }
+    button:hover { background: #F0B429; }
+    table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+    th { text-align: left; padding: 0.5rem; border-bottom: 1px solid #222; color: #666; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; }
+    td { padding: 0.5rem; border-bottom: 1px solid #111; font-size: 0.85rem; }
+    .won { color: #00C853; }
+    .lost { color: #FF3D3D; }
+    .pending { color: #C8971A; }
+    #auth-section { max-width: 400px; margin: 0 auto; text-align: center; padding: 4rem 0; }
+    #main { display: none; }
+  </style>
+</head>
+<body>
+
+<div id="auth-section">
+  <h1>🏟️ THE COACH ADMIN</h1>
+  <input type="password" id="password" placeholder="Admin password" style="width:200px;margin-bottom:1rem;display:block;margin:0 auto 1rem;"/>
+  <button onclick="login()">Login</button>
+</div>
+
+<div id="main">
+  <h1>🏟️ THE COACH — Admin Panel</h1>
+
+  <div class="card">
+    <h2>📊 Stats</h2>
+    <div id="stats">Loading...</div>
+  </div>
+
+  <div class="card">
+    <h2>⚽ Settle Match</h2>
+    <p style="color:#666;font-size:0.8rem;margin-bottom:1rem;">Select a match and the result to pay out winners automatically.</p>
+    <select id="settle-match" style="width:300px;">
+      <option value="">Select match...</option>
+    </select>
+    <select id="settle-result">
+      <option value="home">Home Win</option>
+      <option value="draw">Draw</option>
+      <option value="away">Away Win</option>
+    </select>
+    <button onclick="settleMatch()">Settle & Show Winners</button>
+    <div id="settle-result-display" style="margin-top:1rem;"></div>
+  </div>
+
+  <div class="card">
+    <h2>💰 All Bets</h2>
+    <table id="bets-table">
+      <thead>
+        <tr>
+          <th>Match</th>
+          <th>Wallet</th>
+          <th>Pick</th>
+          <th>Amount</th>
+          <th>To Win</th>
+          <th>Status</th>
+          <th>Time</th>
+        </tr>
+      </thead>
+      <tbody id="bets-body">
+        <tr><td colspan="7" style="color:#666;text-align:center;padding:2rem;">Loading...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const API = 'https://coach-production-0726.up.railway.app';
+let adminPassword = '';
+
+function login() {
+  adminPassword = document.getElementById('password').value;
+  document.getElementById('auth-section').style.display = 'none';
+  document.getElementById('main').style.display = 'block';
+  loadAll();
+}
+
+async function loadAll() {
+  loadStats();
+  loadBets();
+  loadMatchesForSettle();
+}
+
+async function loadStats() {
+  const res = await fetch(`${API}/api/wager/stats`);
+  const s = await res.json();
+  document.getElementById('stats').innerHTML = `
+    Total bets: <strong style="color:#C8971A">${s.totalBets}</strong> |
+    Volume: <strong style="color:#C8971A">${s.totalVolume?.toLocaleString()} $COACH</strong> |
+    Pending: <strong style="color:#C8971A">${s.pending}</strong> |
+    Won: <strong style="color:#00C853">${s.won}</strong>
+  `;
+}
+
+async function loadBets() {
+  const res = await fetch(`${API}/api/admin/bets`, {
+    headers: { 'x-admin-password': adminPassword }
+  });
+  const bets = await res.json();
+  document.getElementById('bets-body').innerHTML = bets.reverse().map(b => `
+    <tr>
+      <td>${b.matchName}</td>
+      <td style="font-size:0.75rem;">${b.walletAddress.slice(0,6)}...${b.walletAddress.slice(-4)}</td>
+      <td style="text-transform:capitalize">${b.outcome}</td>
+      <td>${b.amount?.toLocaleString()} $COACH</td>
+      <td>${b.potentialWin?.toLocaleString()} $COACH</td>
+      <td class="${b.status}">${b.status?.toUpperCase()}</td>
+      <td style="font-size:0.75rem;color:#666">${new Date(b.timestamp).toLocaleString('nl-NL')}</td>
+    </tr>
+  `).join('') || '<tr><td colspan="7" style="color:#666;text-align:center;padding:2rem;">No bets yet</td></tr>';
+}
+
+async function loadMatchesForSettle() {
+  const res = await fetch(`${API}/api/wager/matches/all`);
+  const matches = await res.json();
+  const select = document.getElementById('settle-match');
+  matches.filter(m => m.status === 'open').forEach(m => {
+    const opt = document.createElement('option');
+    opt.value = m.id;
+    opt.textContent = `${m.homeFlag} ${m.home} vs ${m.awayFlag} ${m.away}`;
+    select.appendChild(opt);
+  });
+}
+
+async function settleMatch() {
+  const matchId = document.getElementById('settle-match').value;
+  const result = document.getElementById('settle-result').value;
+  if (!matchId) return alert('Select a match');
+  if (!confirm(`Settle this match with result: ${result}?`)) return;
+
+  const res = await fetch(`${API}/api/admin/settle`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-admin-password': adminPassword },
+    body: JSON.stringify({ matchId, result })
+  });
+  const data = await res.json();
+
+  if (data.success) {
+    const display = document.getElementById('settle-result-display');
+    display.innerHTML = `
+      <p style="color:#00C853;margin-bottom:1rem;">✅ Match settled! Result: <strong>${result}</strong></p>
+      <p style="color:#C8971A;margin-bottom:0.5rem;">Winners to pay out (${data.winners.length}):</p>
+      ${data.winners.map(w => `
+        <div style="background:#0f0f0f;border:1px solid #222;padding:0.75rem;margin-bottom:0.5rem;font-size:0.85rem;">
+          <span style="color:#fff">${w.wallet}</span><br/>
+          Bet: ${w.bet?.toLocaleString()} $COACH @ ${w.odds}× → 
+          <strong style="color:#00C853">Pay out: ${w.payout?.toLocaleString()} $COACH</strong>
+        </div>
+      `).join('') || '<p style="color:#666">No winners</p>'}
+      <p style="color:#C8971A;margin-top:1rem;">Total payout: <strong>${data.totalPayout?.toLocaleString()} $COACH</strong></p>
+    `;
+    loadBets();
+    loadStats();
+  } else {
+    alert('Error: ' + data.error);
+  }
+}
+
+document.getElementById('password').addEventListener('keypress', e => {
+  if (e.key === 'Enter') login();
+});
+</script>
+
+</body>
+</html>
