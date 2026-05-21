@@ -154,17 +154,23 @@
     }
 
     @media (max-width: 768px) {
+      .hero-content {
+        padding: 7rem 1.2rem 2rem !important;
+      }
+
+      .hero-title-row {
+        display: flex;
+        align-items: center;
+        gap: 0;
+      }
+
       .hero-avatar-mobile {
         display: block;
-        position: absolute;
-        right: 0;
-        bottom: 60px;
-        width: 180px;
-        height: 180px;
+        width: 160px;
+        height: 160px;
         object-fit: contain;
-        object-position: center bottom;
-        opacity: 0.6;
-        z-index: 1;
+        flex-shrink: 0;
+        margin-top: -1rem;
       }
     }
 
@@ -996,10 +1002,12 @@
 <!-- HERO -->
 <div class="hero" style="background:#000;">
   <img src="/banner.png" class="hero-banner-img" alt="The Coach Banner"/>
-  <img src="/avatar.png" class="hero-avatar-mobile" alt="The Coach"/>
   <div class="hero-content" style="position:relative;z-index:2;">
     <div class="hero-overline fade-up">World Cup 2026 · Solana · @thecoachonchain</div>
-    <h1 class="hero-h1 fade-up delay-1">THE<br/><span class="gold">COACH</span></h1>
+    <div class="hero-title-row">
+      <h1 class="hero-h1 fade-up delay-1">THE<br/><span class="gold">COACH</span></h1>
+      <img src="/avatar.png" class="hero-avatar-mobile" alt="The Coach"/>
+    </div>
     <p class="hero-sub fade-up delay-2">AI football manager. Never coached a game. Never been wrong. Automated match verdicts after every whistle.</p>
     <div class="hero-actions fade-up delay-3">
       <a href="https://pump.fun" class="btn btn-gold" target="_blank">Buy $COACH on pump.fun</a>
