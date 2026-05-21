@@ -477,7 +477,95 @@ app.post('/api/website-verdict', async (req, res) => {
   res.json({ success: true });
 });
 
-// Health check
+// ── WAGER SYSTEM ─────────────────────────────────────────────
+const WAGER_FILE = path.join(__dirname, 'wagers.json');
+const TREASURY_WALLET = 'DReFFztSXymUsNrKff4e6ozxMbQ3jdV6rCUEuuh9D3ty';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'thecoach2026';
+
+function loadWagers() {
+  if (!fs.existsSync(WAGER_FILE)) {
+    const initial = { bets: [] };
+    fs.writeFileSync(WAGER_FILE, JSON.stringify(initial, null, 2));
+    return initial;
+  }
+  return JSON.parse(fs.readFileSync(WAGER_FILE, 'utf8'));
+}
+
+function saveWagers(data) {
+  fs.writeFileSync(WAGER_FILE, JSON.stringify(data, null, 2));
+}
+
+const WC_MATCHES = [
+  { id: 'wc_1', home: 'Mexico', away: 'South Africa', homeFlag: '🇲🇽', awayFlag: '🇿🇦', date: '2026-06-11T21:00:00Z', competition: 'WC 2026 Group A', status: 'open', odds: { home: 1.8, draw: 3.2, away: 5.0 } },
+  { id: 'wc_2', home: 'Canada', away: 'Bosnia & Herzegovina', homeFlag: '🇨🇦', awayFlag: '🇧🇦', date: '2026-06-12T21:00:00Z', competition: 'WC 2026 Group B', status: 'open', odds: { home: 2.1, draw: 3.0, away: 3.8 } },
+  { id: 'wc_3', home: 'USA', away: 'Paraguay', homeFlag: '🇺🇸', awayFlag: '🇵🇾', date: '2026-06-13T00:00:00Z', competition: 'WC 2026 Group C', status: 'open', odds: { home: 1.6, draw: 3.5, away: 6.0 } },
+  { id: 'wc_4', home: 'Brazil', away: 'Morocco', homeFlag: '🇧🇷', awayFlag: '🇲🇦', date: '2026-06-14T00:00:00Z', competition: 'WC 2026 Group C', status: 'open', odds: { home: 1.5, draw: 4.0, away: 7.0 } },
+  { id: 'wc_5', home: 'Germany', away: 'Curaçao', homeFlag: '🇩🇪', awayFlag: '🇨🇼', date: '2026-06-14T19:00:00Z', competition: 'WC 2026 Group E', status: 'open', odds: { home: 1.1, draw: 8.0, away: 20.0 } },
+  { id: 'wc_6', home: 'Netherlands', away: 'Japan', homeFlag: '🇳🇱', awayFlag: '🇯🇵', date: '2026-06-14T22:00:00Z', competition: 'WC 2026 Group F', status: 'open', odds: { home: 1.7, draw: 3.3, away: 5.5 } },
+  { id: 'wc_7', home: 'Spain', away: 'Cape Verde', homeFlag: '🇪🇸', awayFlag: '🇨🇻', date: '2026-06-15T18:00:00Z', competition: 'WC 2026 Group H', status: 'open', odds: { home: 1.2, draw: 6.0, away: 15.0 } },
+  { id: 'wc_8', home: 'France', away: 'Senegal', homeFlag: '🇫🇷', awayFlag: '🇸🇳', date: '2026-06-15T21:00:00Z', competition: 'WC 2026 Group I', status: 'open', odds: { home: 1.4, draw: 4.5, away: 8.0 } },
+  { id: 'wc_9', home: 'Argentina', away: 'Algeria', homeFlag: '🇦🇷', awayFlag: '🇩🇿', date: '2026-06-17T03:00:00Z', competition: 'WC 2026 Group J', status: 'open', odds: { home: 1.3, draw: 5.0, away: 10.0 } },
+  { id: 'wc_10', home: 'England', away: 'Croatia', homeFlag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', awayFlag: '🇭🇷', date: '2026-06-16T22:00:00Z', competition: 'WC 2026 Group L', status: 'open', odds: { home: 1.6, draw: 3.5, away: 6.0 } },
+];
+
+function adminAuth(req, res, next) {
+  if (req.headers['x-admin-password'] !== ADMIN_PASSWORD) return res.status(401).json({ error: 'Unauthorized' });
+  next();
+}
+
+// Wager routes
+app.get('/api/wager/matches', (req, res) => res.json(WC_MATCHES.filter(m => m.status === 'open')));
+app.get('/api/wager/matches/all', (req, res) => res.json(WC_MATCHES));
+app.get('/api/wager/treasury', (req, res) => res.json({ wallet: TREASURY_WALLET }));
+
+app.post('/api/wager/bet', async (req, res) => {
+  const { matchId, outcome, amount, walletAddress, txHash } = req.body;
+  if (!matchId || !outcome || !amount || !walletAddress || !txHash) return res.status(400).json({ error: 'Missing fields' });
+  const match = WC_MATCHES.find(m => m.id === matchId);
+  if (!match || match.status !== 'open') return res.status(400).json({ error: 'Match not available' });
+  if (!['home','draw','away'].includes(outcome)) return res.status(400).json({ error: 'Invalid outcome' });
+  if (amount < 100) return res.status(400).json({ error: 'Minimum 100 $COACH' });
+  const data = loadWagers();
+  if (data.bets.find(b => b.txHash === txHash)) return res.status(400).json({ error: 'Transaction already used' });
+  const odds = match.odds[outcome];
+  const bet = { id: Date.now(), matchId, matchName: `${match.homeFlag} ${match.home} vs ${match.awayFlag} ${match.away}`, outcome, amount, odds, potentialWin: Math.floor(amount * odds), walletAddress, txHash, timestamp: new Date().toISOString(), status: 'pending' };
+  data.bets.push(bet);
+  saveWagers(data);
+  console.log(`🎰 Bet: ${walletAddress.slice(0,6)} bet ${amount} $COACH on ${outcome}`);
+  res.json({ success: true, bet });
+});
+
+app.get('/api/wager/bets/:wallet', (req, res) => {
+  const data = loadWagers();
+  res.json(data.bets.filter(b => b.walletAddress === req.params.wallet));
+});
+
+app.get('/api/wager/bets/match/:matchId', (req, res) => {
+  const data = loadWagers();
+  const bets = data.bets.filter(b => b.matchId === req.params.matchId);
+  res.json({ bets, total: bets.reduce((s,b) => s+b.amount, 0), byOutcome: { home: bets.filter(b=>b.outcome==='home').reduce((s,b)=>s+b.amount,0), draw: bets.filter(b=>b.outcome==='draw').reduce((s,b)=>s+b.amount,0), away: bets.filter(b=>b.outcome==='away').reduce((s,b)=>s+b.amount,0) } });
+});
+
+app.get('/api/wager/stats', (req, res) => {
+  const data = loadWagers();
+  res.json({ totalBets: data.bets.length, totalVolume: data.bets.reduce((s,b)=>s+b.amount,0), won: data.bets.filter(b=>b.status==='won').length, pending: data.bets.filter(b=>b.status==='pending').length });
+});
+
+app.get('/api/admin/bets', adminAuth, (req, res) => res.json(loadWagers().bets));
+
+app.post('/api/admin/settle', adminAuth, (req, res) => {
+  const { matchId, result } = req.body;
+  if (!matchId || !result) return res.status(400).json({ error: 'Missing matchId or result' });
+  const data = loadWagers();
+  const winners = data.bets.filter(b => b.matchId === matchId && b.status === 'pending' && b.outcome === result);
+  data.bets = data.bets.map(b => b.matchId === matchId && b.status === 'pending' ? { ...b, status: b.outcome === result ? 'won' : 'lost', settledAt: new Date().toISOString() } : b);
+  const match = WC_MATCHES.find(m => m.id === matchId);
+  if (match) match.status = 'settled';
+  saveWagers(data);
+  res.json({ success: true, result, winners: winners.map(w => ({ wallet: w.walletAddress, bet: w.amount, payout: w.potentialWin, odds: w.odds })), totalPayout: winners.reduce((s,w)=>s+w.potentialWin,0) });
+});
+
+
 app.get('/api/health', (req, res) => {
   res.json({ status: 'online', time: new Date().toISOString() });
 });
