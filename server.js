@@ -343,9 +343,12 @@ If there is no new news, respond with exactly: NO_NEWS`
 
 cron.schedule('*/15 * * * *', runMatchBot);          // Check matches every 15 min
 cron.schedule('0 18 * * *', postHotTake);            // Hot take 1x/day at 6pm
-cron.schedule('0 9 * * *', fetchAndPostWCNews);      // WC news at 9am
-cron.schedule('0 13 * * *', fetchAndPostWCNews);     // WC news at 1pm
-cron.schedule('0 20 * * *', fetchAndPostWCNews);     // WC news at 8pm
+cron.schedule('0 8 * * *', fetchAndPostWCNews);      // WC news 8am
+cron.schedule('0 10 * * *', fetchAndPostWCNews);     // WC news 10am
+cron.schedule('0 12 * * *', fetchAndPostWCNews);     // WC news 12pm
+cron.schedule('0 15 * * *', fetchAndPostWCNews);     // WC news 3pm
+cron.schedule('0 19 * * *', fetchAndPostWCNews);     // WC news 7pm
+cron.schedule('0 21 * * *', fetchAndPostWCNews);     // WC news 9pm
 
 // ── API ROUTES ───────────────────────────────────────────────
 
