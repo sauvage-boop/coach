@@ -145,14 +145,27 @@
 
     @media (max-width: 768px) {
       .hero-banner-img {
-        width: 100%;
-        height: 100%;
-        top: 0;
-        bottom: auto;
-        opacity: 0.15;
-        mask-image: linear-gradient(to bottom, black 40%, transparent 100%);
-        -webkit-mask-image: linear-gradient(to bottom, black 40%, transparent 100%);
-        object-position: right top;
+        display: none;
+      }
+    }
+
+    .hero-avatar-mobile {
+      display: none;
+    }
+
+    @media (max-width: 768px) {
+      .hero-avatar-mobile {
+        display: block;
+        position: absolute;
+        right: -20px;
+        top: 50%;
+        transform: translateY(-60%);
+        width: 220px;
+        height: 220px;
+        object-fit: contain;
+        object-position: center top;
+        opacity: 0.5;
+        z-index: 1;
       }
     }
 
@@ -984,6 +997,7 @@
 <!-- HERO -->
 <div class="hero" style="background:#000;">
   <img src="/banner.png" class="hero-banner-img" alt="The Coach Banner"/>
+  <img src="/avatar.png" class="hero-avatar-mobile" alt="The Coach"/>
   <div class="hero-content" style="position:relative;z-index:2;">
     <div class="hero-overline fade-up">World Cup 2026 · Solana · @thecoachonchain</div>
     <h1 class="hero-h1 fade-up delay-1">THE<br/><span class="gold">COACH</span></h1>
