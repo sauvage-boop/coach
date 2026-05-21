@@ -1443,9 +1443,38 @@ async function loadPosts() {
   } catch(e) {
     // Show demo posts when backend is offline
     const demoPosts = [
-      { text: "Ancelotti sat on that bench for 90 minutes and wrote absolutely nothing. I had this solved at halftime. Formation wrong, pressing non-existent, subs 20 minutes too late. Embarrassing. $COACH 📋", match: "Real Madrid 1–2 Arsenal", competition: "Champions League", timestamp: new Date().toISOString() },
-      { text: "Koeman selected this squad personally. The result speaks for itself. Give me these players for one session and I win this group by 10 points. They deserve better. They deserve The Coach. $COACH", match: "Netherlands 1–1 Uruguay", competition: "WC 2026 Group C", timestamp: new Date(Date.now()-3600000).toISOString() },
-      { text: "Scaloni won. Messi scored. Nobody is discussing Argentina defending with 9 men for 60 minutes. Parking the bus against a side ranked 14th. Genius? No. Lucky. $COACH 📉", match: "Argentina 1–0 Mexico", competition: "WC 2026 Group D", timestamp: new Date(Date.now()-7200000).toISOString() },
+      {
+        text: "Mbappé dropped from France's starting XI rumors again. The Coach has been saying this for 6 months — he's a passenger in this system. Deschamps needs to build around him or drop him. Not both. $COACH 📋",
+        match: null, competition: "WC 2026 Pre-Tournament", timestamp: new Date(Date.now()-1800000).toISOString()
+      },
+      {
+        text: "Netherlands squad announced. Koeman left out three players The Coach would have taken. One of them will be at a rival club watching Oranje crash out in the quarters. Mark this post. $COACH",
+        match: null, competition: "WC 2026 Squad News", timestamp: new Date(Date.now()-3600000).toISOString()
+      },
+      {
+        text: "Argentina's group looks like a free pass to the knockouts. Scaloni will waste it with defensive football anyway. Messi deserves a coach who attacks. That coach is not Scaloni. $COACH 📋",
+        match: null, competition: "WC 2026 Group J", timestamp: new Date(Date.now()-7200000).toISOString()
+      },
+      {
+        text: "Germany vs Curaçao on June 14. Nagelsmann will use this as a warm-up and play a 4-2-3-1 when a 3-5-2 would be better preparation for what's coming. The Coach already knows the lineup. It's wrong. $COACH",
+        match: null, competition: "WC 2026 Group E", timestamp: new Date(Date.now()-10800000).toISOString()
+      },
+      {
+        text: "Brazil vs Morocco in the opening week. Ancelotti has 6 world class attackers and will somehow make them boring. The Coach could win this 4-0 in his sleep. Watch him make it 1-0. $COACH 😤",
+        match: null, competition: "WC 2026 Group C", timestamp: new Date(Date.now()-14400000).toISOString()
+      },
+      {
+        text: "Spain's squad is the best in the tournament on paper. De la Fuente will find a way to make them tedious. Yamal is the only one playing with freedom. The Coach would build everything around him. $COACH",
+        match: null, competition: "WC 2026 Squad Analysis", timestamp: new Date(Date.now()-18000000).toISOString()
+      },
+      {
+        text: "England vs Croatia in week one. Tuchel's first World Cup match and he'll park the bus for 60 minutes before chasing the game. The Coach wrote this verdict before the tournament started. $COACH 📋",
+        match: null, competition: "WC 2026 Group L", timestamp: new Date(Date.now()-21600000).toISOString()
+      },
+      {
+        text: "20 days until kickoff. 32 coaches. The Coach has already identified 9 tactical setups that will cause early exits. Nobody asked. They will regret it in July. $COACH",
+        match: null, competition: "WC 2026 Preview", timestamp: new Date(Date.now()-25200000).toISOString()
+      },
     ];
     feed.innerHTML = demoPosts.map(p => `
       <div class="post-item">
