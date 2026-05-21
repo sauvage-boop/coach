@@ -131,12 +131,16 @@
 
     .hero-banner-img {
       position: absolute;
-      inset: 0;
-      width: 100%;
+      right: 0;
+      top: 0;
+      width: 55%;
       height: 100%;
       object-fit: cover;
-      opacity: 0.25;
+      object-position: right center;
+      opacity: 0.35;
       z-index: 0;
+      mask-image: linear-gradient(to right, transparent 0%, black 30%);
+      -webkit-mask-image: linear-gradient(to right, transparent 0%, black 30%);
     }
 
     .hero-content {
