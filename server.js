@@ -359,14 +359,12 @@ async function generateWebsiteVerdict() {
       system: COACH_PERSONA,
       messages: [{
         role: 'user',
-        content: `Search for the latest FIFA World Cup 2026 news — squad announcements, player selection, coach decisions, tactical previews, transfers, injuries. 
+        content: `Search for the latest FIFA World Cup 2026 news right now. Find ONE specific interesting story about squad selections, player news, coach decisions, or tactical previews.
 
-Then write ONE verdict in character as The Coach about the most interesting news you find. Be brutal, specific, funny. Under 260 characters. End with $COACH.
+Write ONE tweet as The Coach reacting to it. Brutal, arrogant, degen style. Under 260 chars. End with $COACH.
 
-Also return the topic as a short tag like "WC 2026 Squad News" or "WC 2026 Group A".
-
-Respond in this exact JSON format:
-{"text": "your verdict here $COACH", "competition": "WC 2026 Topic"}`
+Respond ONLY with this JSON, no other text, no markdown:
+{"text":"your tweet here $COACH","competition":"WC 2026 Topic"}`
       }]
     });
 
