@@ -347,55 +347,63 @@ If there is no new news, respond with exactly: NO_NEWS`
 
 
 // ── WEBSITE VERDICT GENERATOR ────────────────────────────────
-// Generates a new verdict every hour for the website feed
-// Does NOT post to X — only saves for the website
 async function generateWebsiteVerdict() {
   console.log('🌐 Generating website verdict...');
   try {
-    const msg = await claude.messages.create({
+    // Step 1: Search for news
+    const searchMsg = await claude.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 500,
       tools: [{ type: 'web_search_20250305', name: 'web_search' }],
-      system: COACH_PERSONA,
       messages: [{
         role: 'user',
-        content: `Search for the latest FIFA World Cup 2026 news right now. Find ONE specific interesting story about squad selections, player news, coach decisions, or tactical previews.
-
-Write ONE tweet as The Coach reacting to it. Brutal, arrogant, degen style. Under 260 chars. End with $COACH.
-
-Respond ONLY with this JSON, no other text, no markdown:
-{"text":"your tweet here $COACH","competition":"WC 2026 Topic"}`
+        content: 'Search for the single most interesting FIFA World Cup 2026 news story from today. Return only the headline and a 2-sentence summary. Nothing else.'
       }]
     });
 
-    const textBlock = msg.content.find(b => b.type === 'text');
-    if (!textBlock) return;
+    const newsText = searchMsg.content
+      .filter(b => b.type === 'text')
+      .map(b => b.text)
+      .join(' ')
+      .trim();
 
-    let parsed;
-    try {
-      const clean = textBlock.text.replace(/```json|```/g, '').trim();
-      parsed = JSON.parse(clean);
-    } catch(e) {
-      // If not JSON, use the text directly
-      parsed = { text: textBlock.text.trim(), competition: 'WC 2026' };
-    }
+    if (!newsText || newsText.length < 20) return;
 
-    if (!parsed.text || parsed.text === 'NO_NEWS') return;
+    // Step 2: Generate verdict based on news
+    const verdictMsg = await claude.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 150,
+      system: COACH_PERSONA,
+      messages: [{
+        role: 'user',
+        content: `Based on this news: "${newsText}"
+
+Write ONE tweet reacting to this as The Coach. Under 260 chars. End with $COACH. NO intro, NO explanation. Just the tweet text directly.`
+      }]
+    });
+
+    const verdict = verdictMsg.content[0]?.text?.trim();
+    if (!verdict || !verdict.includes('$COACH') || verdict.length > 280) return;
+
+    // Determine topic
+    const competition = newsText.toLowerCase().includes('group') ? 'WC 2026 Group Stage' :
+                       newsText.toLowerCase().includes('squad') ? 'WC 2026 Squad News' :
+                       newsText.toLowerCase().includes('injury') ? 'WC 2026 Injury News' : 'WC 2026 News';
 
     const data = loadData();
     data.posts.unshift({
       id: Date.now(),
       tweetId: null,
-      text: parsed.text,
+      text: verdict,
       match: null,
-      competition: parsed.competition || 'WC 2026',
+      competition,
       timestamp: new Date().toISOString(),
       posted: false,
       source: 'website'
     });
     if (data.posts.length > 50) data.posts = data.posts.slice(0, 50);
     saveData(data);
-    console.log('🌐 Website verdict saved:', parsed.text.substring(0, 60) + '...');
+    console.log('🌐 Website verdict saved:', verdict.substring(0, 80) + '...');
   } catch (e) {
     console.error('Website verdict error:', e.message);
   }
