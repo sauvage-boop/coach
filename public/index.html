@@ -166,11 +166,12 @@
 
       .hero-avatar-mobile {
         display: block;
-        width: 160px;
-        height: 160px;
+        width: 300px;
+        height: 300px;
         object-fit: contain;
         flex-shrink: 0;
-        margin-top: -1rem;
+        margin-top: -3rem;
+        margin-right: -1.5rem;
       }
     }
 
@@ -1094,20 +1095,93 @@
 <div class="section-full" id="matches" style="background:#000;">
   <div class="section-inner">
     <div class="label">The Coach Is Watching</div>
-    <h2 class="heading">Upcoming<br/><span class="dim">Matches</span></h2>
-    <table class="matches-table" id="matches-table">
+    <h2 class="heading">WC 2026<br/><span class="dim">Opening Matches</span></h2>
+    <div style="overflow-x:auto;">
+    <table class="matches-table">
       <thead>
         <tr>
           <th>Match</th>
-          <th>Competition</th>
-          <th>Time</th>
+          <th>Stadium</th>
+          <th>City</th>
+          <th>Time (CET)</th>
           <th>Verdict</th>
         </tr>
       </thead>
-      <tbody id="matches-body">
-        <tr><td colspan="4" style="color:var(--grey);font-family:'JetBrains Mono',monospace;font-size:0.75rem;text-align:center;padding:2rem;background:#000;">Loading matches...</td></tr>
+      <tbody>
+        <tr>
+          <td><span class="match-teams">🇲🇽 Mexico <span class="match-vs">vs</span> 🇿🇦 South Africa</span></td>
+          <td><span class="match-comp">Estadio Azteca</span></td>
+          <td><span class="match-comp">Mexico City, MEX</span></td>
+          <td><span class="match-time">Jun 11 · 21:00</span></td>
+          <td><span class="verdict-badge">Incoming</span></td>
+        </tr>
+        <tr>
+          <td><span class="match-teams">🇰🇷 South Korea <span class="match-vs">vs</span> 🇨🇿 Czechia</span></td>
+          <td><span class="match-comp">Estadio Akron</span></td>
+          <td><span class="match-comp">Zapopan, MEX</span></td>
+          <td><span class="match-time">Jun 12 · 04:00</span></td>
+          <td><span class="verdict-badge">Incoming</span></td>
+        </tr>
+        <tr>
+          <td><span class="match-teams">🇨🇦 Canada <span class="match-vs">vs</span> 🇧🇦 Bosnia & Herz.</span></td>
+          <td><span class="match-comp">BMO Field</span></td>
+          <td><span class="match-comp">Toronto, CAN</span></td>
+          <td><span class="match-time">Jun 12 · 21:00</span></td>
+          <td><span class="verdict-badge">Incoming</span></td>
+        </tr>
+        <tr>
+          <td><span class="match-teams">🇺🇸 USA <span class="match-vs">vs</span> 🇵🇾 Paraguay</span></td>
+          <td><span class="match-comp">SoFi Stadium</span></td>
+          <td><span class="match-comp">Los Angeles, USA</span></td>
+          <td><span class="match-time">Jun 13 · 00:00</span></td>
+          <td><span class="verdict-badge">Incoming</span></td>
+        </tr>
+        <tr>
+          <td><span class="match-teams">🇧🇷 Brazil <span class="match-vs">vs</span> 🇲🇦 Morocco</span></td>
+          <td><span class="match-comp">MetLife Stadium</span></td>
+          <td><span class="match-comp">New Jersey, USA</span></td>
+          <td><span class="match-time">Jun 14 · 00:00</span></td>
+          <td><span class="verdict-badge">Incoming</span></td>
+        </tr>
+        <tr>
+          <td><span class="match-teams">🇦🇺 Australia <span class="match-vs">vs</span> 🇹🇷 Türkiye</span></td>
+          <td><span class="match-comp">BC Place</span></td>
+          <td><span class="match-comp">Vancouver, CAN</span></td>
+          <td><span class="match-time">Jun 14 · 06:00</span></td>
+          <td><span class="verdict-badge">Incoming</span></td>
+        </tr>
+        <tr>
+          <td><span class="match-teams">🇩🇪 Germany <span class="match-vs">vs</span> 🇨🇼 Curaçao</span></td>
+          <td><span class="match-comp">NRG Stadium</span></td>
+          <td><span class="match-comp">Houston, USA</span></td>
+          <td><span class="match-time">Jun 14 · 19:00</span></td>
+          <td><span class="verdict-badge">Incoming</span></td>
+        </tr>
+        <tr>
+          <td><span class="match-teams">🇳🇱 Netherlands <span class="match-vs">vs</span> 🇯🇵 Japan</span></td>
+          <td><span class="match-comp">AT&T Stadium</span></td>
+          <td><span class="match-comp">Arlington, USA</span></td>
+          <td><span class="match-time">Jun 14 · 22:00</span></td>
+          <td><span class="verdict-badge">Incoming</span></td>
+        </tr>
+        <tr>
+          <td><span class="match-teams">🇪🇸 Spain <span class="match-vs">vs</span> 🇨🇻 Cape Verde</span></td>
+          <td><span class="match-comp">Mercedes-Benz Stadium</span></td>
+          <td><span class="match-comp">Atlanta, USA</span></td>
+          <td><span class="match-time">Jun 15 · 18:00</span></td>
+          <td><span class="verdict-badge">Incoming</span></td>
+        </tr>
+        <tr>
+          <td><span class="match-teams">🇫🇷 France <span class="match-vs">vs</span> 🇸🇳 Senegal</span></td>
+          <td><span class="match-comp">MetLife Stadium</span></td>
+          <td><span class="match-comp">New Jersey, USA</span></td>
+          <td><span class="match-time">Jun 15 · 21:00</span></td>
+          <td><span class="verdict-badge">Incoming</span></td>
+        </tr>
       </tbody>
     </table>
+    </div>
+    <p style="font-family:'JetBrains Mono',monospace;font-size:0.65rem;color:var(--grey);margin-top:1rem;letter-spacing:0.1em;">ALL TIMES IN CET (CENTRAL EUROPEAN TIME)</p>
   </div>
 </div>
 
