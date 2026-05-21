@@ -346,6 +346,63 @@ If there is no new news, respond with exactly: NO_NEWS`
 }
 
 
+// ── WEBSITE VERDICT GENERATOR ────────────────────────────────
+// Generates a new verdict every hour for the website feed
+// Does NOT post to X — only saves for the website
+async function generateWebsiteVerdict() {
+  console.log('🌐 Generating website verdict...');
+  try {
+    const msg = await claude.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 500,
+      tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+      system: COACH_PERSONA,
+      messages: [{
+        role: 'user',
+        content: `Search for the latest FIFA World Cup 2026 news — squad announcements, player selection, coach decisions, tactical previews, transfers, injuries. 
+
+Then write ONE verdict in character as The Coach about the most interesting news you find. Be brutal, specific, funny. Under 260 characters. End with $COACH.
+
+Also return the topic as a short tag like "WC 2026 Squad News" or "WC 2026 Group A".
+
+Respond in this exact JSON format:
+{"text": "your verdict here $COACH", "competition": "WC 2026 Topic"}`
+      }]
+    });
+
+    const textBlock = msg.content.find(b => b.type === 'text');
+    if (!textBlock) return;
+
+    let parsed;
+    try {
+      const clean = textBlock.text.replace(/```json|```/g, '').trim();
+      parsed = JSON.parse(clean);
+    } catch(e) {
+      // If not JSON, use the text directly
+      parsed = { text: textBlock.text.trim(), competition: 'WC 2026' };
+    }
+
+    if (!parsed.text || parsed.text === 'NO_NEWS') return;
+
+    const data = loadData();
+    data.posts.unshift({
+      id: Date.now(),
+      tweetId: null,
+      text: parsed.text,
+      match: null,
+      competition: parsed.competition || 'WC 2026',
+      timestamp: new Date().toISOString(),
+      posted: false,
+      source: 'website'
+    });
+    if (data.posts.length > 50) data.posts = data.posts.slice(0, 50);
+    saveData(data);
+    console.log('🌐 Website verdict saved:', parsed.text.substring(0, 60) + '...');
+  } catch (e) {
+    console.error('Website verdict error:', e.message);
+  }
+}
+
 cron.schedule('*/15 * * * *', runMatchBot);          // Check matches every 15 min
 cron.schedule('0 18 * * *', postHotTake);            // Hot take 1x/day at 6pm
 cron.schedule('0 8 * * *', fetchAndPostWCNews);      // WC news 8am
@@ -354,6 +411,7 @@ cron.schedule('0 12 * * *', fetchAndPostWCNews);     // WC news 12pm
 cron.schedule('0 15 * * *', fetchAndPostWCNews);     // WC news 3pm
 cron.schedule('0 19 * * *', fetchAndPostWCNews);     // WC news 7pm
 cron.schedule('0 21 * * *', fetchAndPostWCNews);     // WC news 9pm
+cron.schedule('0 * * * *', generateWebsiteVerdict); // Website verdict every hour
 
 // ── API ROUTES ───────────────────────────────────────────────
 
@@ -407,6 +465,12 @@ app.post('/api/news', async (req, res) => {
   res.json({ success: true });
 });
 
+// Manual website verdict trigger
+app.post('/api/website-verdict', async (req, res) => {
+  await generateWebsiteVerdict();
+  res.json({ success: true });
+});
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'online', time: new Date().toISOString() });
@@ -418,5 +482,6 @@ app.listen(PORT, () => {
   console.log(`\n🏟️  THE COACH BACKEND — ONLINE`);
   console.log(`📡 API running on http://localhost:${PORT}`);
   console.log(`⚽ Bot checking matches every 15 minutes\n`);
-  runMatchBot(); // Run immediately on start
+  runMatchBot();
+  generateWebsiteVerdict(); // Generate first verdict on startup
 });
