@@ -1240,32 +1240,73 @@
   <div class="section-inner">
     <div class="label">Wager With $COACH</div>
     <h2 class="heading">Place Your Bet.<br/><span class="dim">The Coach Already Knows.</span></h2>
-    <div class="wager-wrap">
-      <div class="wager-header" style="background:#000;">
-        <div>
-          <div class="wager-match-name">Netherlands vs Uruguay</div>
-          <div class="wager-comp">WC 2026 · Group C · June 18</div>
-        </div>
-        <div class="live-pill"><div class="live-dot"></div>Betting Open</div>
+
+    <!-- Wallet connect bar -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;flex-wrap:wrap;gap:1rem;">
+      <p style="font-size:0.85rem;color:var(--grey);font-family:'JetBrains Mono',monospace;">Connect Phantom wallet to place bets with $COACH</p>
+      <button class="btn btn-gold" id="wager-wallet-btn" onclick="connectWagerWallet()" style="font-size:0.75rem;padding:0.6rem 1.2rem;">Connect Wallet</button>
+    </div>
+
+    <!-- Match selector -->
+    <div id="wager-matches-list" style="display:flex;flex-direction:column;gap:1px;background:var(--border);border:1px solid var(--border);margin-bottom:2rem;">
+      <div style="padding:1.5rem;text-align:center;font-family:'JetBrains Mono',monospace;font-size:0.75rem;color:var(--grey);background:#000;">Loading matches...</div>
+    </div>
+
+    <!-- Bet slip -->
+    <div id="wager-betslip" style="display:none;border:1px solid var(--border);background:#000;">
+      <div style="padding:1.2rem 1.5rem;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-family:'Bebas Neue',sans-serif;font-size:1.1rem;letter-spacing:0.08em;">Bet Slip</span>
+        <span id="wager-slip-odds" style="color:var(--gold);font-family:'Bebas Neue',sans-serif;font-size:1.1rem;"></span>
       </div>
-      <div class="wager-body">
-        <div class="wager-left">
-          <p class="coach-verdict">"Oranje will win this. Not because Koeman deserves it — because Uruguay's striker hasn't scored in 4 games. Even he can't mess this up."</p>
-          <div class="odds-row">
-            <button class="odd-pill active" data-mult="1.85">NED WIN 1.85×</button>
-            <button class="odd-pill" data-mult="3.20">DRAW 3.20×</button>
-            <button class="odd-pill" data-mult="4.10">URU WIN 4.10×</button>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;" id="wager-slip-inner">
+        <div style="padding:1.5rem;border-right:1px solid var(--border);">
+          <p id="wager-slip-match" style="font-weight:700;font-size:0.9rem;margin-bottom:0.3rem;"></p>
+          <p id="wager-slip-pick" style="font-family:'JetBrains Mono',monospace;font-size:0.72rem;color:var(--gold);letter-spacing:0.08em;margin-bottom:1.2rem;"></p>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:0.62rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--grey);margin-bottom:0.4rem;">Your Wager ($COACH)</div>
+          <input type="number" id="wager-amount-main" value="1000" min="100" oninput="updateWagerReturn()" style="width:100%;background:#000;border:1px solid var(--border);color:var(--gold);font-family:'Bebas Neue',sans-serif;font-size:2rem;padding:0.6rem 0.8rem;outline:none;"/>
+        </div>
+        <div style="padding:1.5rem;">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:0.62rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--grey);margin-bottom:0.4rem;">Potential Return</div>
+          <div id="wager-return-main" style="font-family:'Bebas Neue',sans-serif;font-size:2.5rem;color:var(--gold);line-height:1;margin-bottom:1.2rem;">0 $COACH</div>
+          <button onclick="openWagerModal()" class="btn btn-gold" style="width:100%;text-align:center;display:block;font-size:0.75rem;">Place Bet →</button>
+          <p style="font-size:0.65rem;color:var(--grey);margin-top:0.5rem;font-family:'JetBrains Mono',monospace;line-height:1.5;">Send $COACH to treasury, submit tx hash as proof.</p>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top:1rem;text-align:right;">
+      <a href="/wager.html" style="font-family:'JetBrains Mono',monospace;font-size:0.72rem;letter-spacing:0.1em;color:var(--gold);text-decoration:none;">View full wager page →</a>
+    </div>
+  </div>
+</div>
+
+<!-- TX MODAL -->
+<div id="main-tx-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:900;display:none;align-items:center;justify-content:center;padding:1rem;">
+  <div style="background:#0F0F0F;border:1px solid #333;width:100%;max-width:480px;">
+    <div style="padding:1.2rem 1.5rem;border-bottom:1px solid #1C1C1C;display:flex;justify-content:space-between;align-items:center;">
+      <span style="font-family:'Bebas Neue',sans-serif;font-size:1.3rem;letter-spacing:0.05em;">Confirm Your Bet</span>
+      <button onclick="closeWagerModal()" style="background:none;border:none;color:#666;font-size:1.2rem;cursor:pointer;">✕</button>
+    </div>
+    <div style="padding:1.5rem;">
+      <div style="display:flex;gap:1rem;margin-bottom:1.5rem;align-items:flex-start;">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:1.5rem;color:var(--gold);line-height:1;flex-shrink:0;width:28px;">1</div>
+        <div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:0.72rem;letter-spacing:0.1em;text-transform:uppercase;color:#fff;margin-bottom:0.4rem;">Send <span id="modal-amount">0</span> $COACH to treasury</div>
+          <div style="font-size:0.82rem;color:#666;margin-bottom:0.5rem;">Open Phantom and send to this address:</div>
+          <div onclick="copyMainWallet()" style="background:#000;border:1px solid #1C1C1C;padding:0.75rem;font-family:'JetBrains Mono',monospace;font-size:0.65rem;color:var(--gold);word-break:break-all;cursor:pointer;transition:border-color 0.15s;" onmouseover="this.style.borderColor='#C8971A'" onmouseout="this.style.borderColor='#1C1C1C'">
+            DReFFztSXymUsNrKff4e6ozxMbQ3jdV6rCUEuuh9D3ty <span style="color:#666;">📋</span>
           </div>
         </div>
-        <div class="wager-right">
-          <div class="wager-field-label">Your wager ($COACH)</div>
-          <input type="number" class="wager-input" id="wager-amount" value="1000"/>
-          <div class="wager-field-label">Potential return</div>
-          <div class="wager-field-value" id="wager-return">1,850 $COACH</div>
-          <a href="#" class="btn btn-gold" style="width:100%;text-align:center;display:block;">Connect Wallet to Wager</a>
-          <p style="font-size:0.68rem;color:var(--grey);margin-top:0.5rem;font-family:'JetBrains Mono',monospace;line-height:1.5;">Hold $COACH in your Solana wallet to participate.</p>
+      </div>
+      <div style="display:flex;gap:1rem;align-items:flex-start;">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:1.5rem;color:var(--gold);line-height:1;flex-shrink:0;width:28px;">2</div>
+        <div style="flex:1;">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:0.72rem;letter-spacing:0.1em;text-transform:uppercase;color:#fff;margin-bottom:0.4rem;">Paste transaction hash</div>
+          <div style="font-size:0.82rem;color:#666;margin-bottom:0.5rem;">Copy the tx signature from Phantom after sending.</div>
+          <input type="text" id="main-tx-input" placeholder="Paste signature here..." style="width:100%;background:#000;border:1px solid #1C1C1C;color:#fff;font-family:'JetBrains Mono',monospace;font-size:0.78rem;padding:0.75rem;outline:none;"/>
         </div>
       </div>
+      <button onclick="submitMainBet()" style="width:100%;background:var(--gold);color:#000;border:none;font-family:'JetBrains Mono',monospace;font-size:0.8rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;padding:1rem;cursor:pointer;margin-top:1.5rem;">Confirm Bet →</button>
     </div>
   </div>
 </div>
@@ -1565,6 +1606,138 @@ document.querySelectorAll('.faq-row').forEach(row => {
     if (!open) row.classList.add('open');
   });
 });
+
+// ── WAGER ──
+let wagerWallet = null;
+let wagerMatch = null;
+let wagerOutcome = null;
+
+async function connectWagerWallet() {
+  if (window.solana?.isPhantom) {
+    try {
+      const resp = await window.solana.connect();
+      wagerWallet = resp.publicKey.toString();
+      const btn = document.getElementById('wager-wallet-btn');
+      btn.textContent = wagerWallet.slice(0,4) + '...' + wagerWallet.slice(-4);
+      btn.style.background = '#00C853';
+    } catch(e) {}
+  } else {
+    window.open('https://phantom.app/', '_blank');
+  }
+}
+
+async function loadWagerMatches() {
+  try {
+    const res = await fetch(`${API}/api/wager/matches`);
+    const matches = await res.json();
+    const list = document.getElementById('wager-matches-list');
+    if (!matches.length) {
+      list.innerHTML = '<div style="padding:1.5rem;text-align:center;font-family:JetBrains Mono,monospace;font-size:0.75rem;color:#666;background:#000;">No open matches yet</div>';
+      return;
+    }
+    list.innerHTML = matches.slice(0,5).map(m => {
+      const date = new Date(m.date);
+      const dateStr = date.toLocaleDateString('en-GB', {day:'numeric',month:'short'}) + ' · ' + date.toLocaleTimeString('en-GB', {hour:'2-digit',minute:'2-digit'}) + ' CET';
+      return `
+        <div style="background:#000;padding:1.2rem 1.5rem;border-bottom:1px solid #1C1C1C;cursor:pointer;" id="wm-${m.id}">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.8rem;flex-wrap:wrap;gap:0.5rem;">
+            <span style="font-family:'Bebas Neue',sans-serif;font-size:1.2rem;">${m.homeFlag} ${m.home} <span style="color:#666;font-size:0.9rem;">vs</span> ${m.awayFlag} ${m.away}</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:0.65rem;color:var(--gold);">${dateStr}</span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.5rem;">
+            <button onclick="selectWagerOutcome('${m.id}','home',${m.odds.home},'${m.homeFlag} ${m.home} Win')" id="wo-${m.id}-home" style="background:#000;border:1px solid #222;color:#fff;padding:0.5rem;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:0.72rem;transition:all 0.15s;">
+              <span style="display:block;font-size:0.6rem;opacity:0.6;margin-bottom:0.2rem;">${m.homeFlag} WIN</span>${m.odds.home}×
+            </button>
+            <button onclick="selectWagerOutcome('${m.id}','draw',${m.odds.draw},'Draw')" id="wo-${m.id}-draw" style="background:#000;border:1px solid #222;color:#fff;padding:0.5rem;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:0.72rem;transition:all 0.15s;">
+              <span style="display:block;font-size:0.6rem;opacity:0.6;margin-bottom:0.2rem;">DRAW</span>${m.odds.draw}×
+            </button>
+            <button onclick="selectWagerOutcome('${m.id}','away',${m.odds.away},'${m.awayFlag} ${m.away} Win')" id="wo-${m.id}-away" style="background:#000;border:1px solid #222;color:#fff;padding:0.5rem;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:0.72rem;transition:all 0.15s;">
+              <span style="display:block;font-size:0.6rem;opacity:0.6;margin-bottom:0.2rem;">${m.awayFlag} WIN</span>${m.odds.away}×
+            </button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  } catch(e) {}
+}
+
+function selectWagerOutcome(matchId, outcome, odds, label) {
+  // Reset all buttons
+  document.querySelectorAll('[id^="wo-"]').forEach(b => {
+    b.style.background = '#000';
+    b.style.color = '#fff';
+    b.style.borderColor = '#222';
+  });
+
+  // Highlight selected
+  const btn = document.getElementById(`wo-${matchId}-${outcome}`);
+  if (btn) { btn.style.background = '#C8971A'; btn.style.color = '#000'; btn.style.borderColor = '#C8971A'; }
+
+  // Store selection
+  wagerMatch = matchId;
+  wagerOutcome = outcome;
+
+  // Update bet slip
+  const matches = document.querySelectorAll('[id^="wm-"]');
+  const matchEl = document.getElementById(`wm-${matchId}`);
+  const matchName = matchEl?.querySelector('[style*="Bebas"]')?.textContent?.trim() || '';
+
+  document.getElementById('wager-slip-match').textContent = matchName;
+  document.getElementById('wager-slip-pick').textContent = `📋 ${label} @ ${odds}×`;
+  document.getElementById('wager-slip-odds').textContent = `${odds}×`;
+  document.getElementById('wager-betslip').style.display = 'block';
+  updateWagerReturn();
+}
+
+function updateWagerReturn() {
+  const amount = parseInt(document.getElementById('wager-amount-main')?.value) || 0;
+  const oddsText = document.getElementById('wager-slip-odds')?.textContent;
+  const odds = parseFloat(oddsText) || 1;
+  document.getElementById('wager-return-main').textContent = Math.floor(amount * odds).toLocaleString() + ' $COACH';
+}
+
+function openWagerModal() {
+  if (!wagerWallet) { connectWagerWallet(); return; }
+  if (!wagerMatch || !wagerOutcome) return;
+  const amount = parseInt(document.getElementById('wager-amount-main')?.value) || 0;
+  document.getElementById('modal-amount').textContent = amount.toLocaleString();
+  document.getElementById('main-tx-modal').style.display = 'flex';
+  document.getElementById('main-tx-input').value = '';
+}
+
+function closeWagerModal() {
+  document.getElementById('main-tx-modal').style.display = 'none';
+}
+
+function copyMainWallet() {
+  navigator.clipboard.writeText('DReFFztSXymUsNrKff4e6ozxMbQ3jdV6rCUEuuh9D3ty');
+}
+
+async function submitMainBet() {
+  const txHash = document.getElementById('main-tx-input').value.trim();
+  const amount = parseInt(document.getElementById('wager-amount-main')?.value);
+  if (!txHash) return;
+  closeWagerModal();
+
+  try {
+    const res = await fetch(`${API}/api/wager/bet`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ matchId: wagerMatch, outcome: wagerOutcome, amount, walletAddress: wagerWallet, txHash })
+    });
+    const data = await res.json();
+    if (data.success) {
+      alert(`✅ Bet confirmed! Potential win: ${data.bet.potentialWin.toLocaleString()} $COACH`);
+      loadWagerMatches();
+    } else {
+      alert(`❌ ${data.error}`);
+    }
+  } catch(e) {
+    alert('Failed. Try again.');
+  }
+}
+
+loadWagerMatches();
 
 // ── INIT ──
 loadPosts();
