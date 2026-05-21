@@ -1,0 +1,1422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>THE COACH — $COACH</title>
+  <meta name="description" content="AI football manager. Never coached. Always right. Post-match verdicts after every WC 2026 match."/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Grotesk:wght@300;400;500;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet"/>
+  <style>
+    /* ── RESET & BASE ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --gold: #C8971A;
+      --gold-bright: #F0B429;
+      --black: #000000;
+      --off-black: #0A0A0A;
+      --card: #0F0F0F;
+      --border: #1C1C1C;
+      --border-bright: #333333;
+      --white: #FFFFFF;
+      --grey: #666666;
+      --light-grey: #999999;
+    }
+
+    html { scroll-behavior: smooth; background: #000; }
+
+    body {
+      background: #000000;
+      color: var(--white);
+      font-family: 'Space Grotesk', sans-serif;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── GRAIN OVERLAY ── */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 9999;
+      opacity: 0.6;
+    }
+
+    /* ── NAV ── */
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 500;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 2rem;
+      height: 56px;
+      background: rgba(0,0,0,0.92);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .nav-left {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .nav-logo {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.4rem;
+      letter-spacing: 0.08em;
+      color: var(--white);
+    }
+
+    .nav-ticker-badge {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem;
+      color: var(--gold);
+      background: rgba(200,151,26,0.12);
+      border: 1px solid rgba(200,151,26,0.3);
+      padding: 0.2rem 0.5rem;
+      letter-spacing: 0.05em;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 2rem;
+      list-style: none;
+    }
+
+    .nav-links a {
+      font-size: 0.78rem;
+      font-weight: 500;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--grey);
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+
+    .nav-links a:hover { color: var(--white); }
+
+    .nav-buy {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--black);
+      background: var(--gold);
+      padding: 0.45rem 1rem;
+      text-decoration: none;
+      transition: background 0.15s;
+      white-space: nowrap;
+    }
+
+    .nav-buy:hover { background: var(--gold-bright); }
+
+    /* ── HERO ── */
+    .hero {
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: 1fr auto;
+      padding: 0;
+      position: relative;
+      overflow: hidden;
+      background: #000;
+    }
+
+    .hero-content {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 8rem 2rem 3rem;
+      position: relative;
+      z-index: 2;
+    }
+
+    .hero-overline {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      color: var(--gold);
+      margin-bottom: 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .hero-overline::before {
+      content: '';
+      width: 24px;
+      height: 1px;
+      background: var(--gold);
+    }
+
+    .hero-h1 {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(5.5rem, 18vw, 18rem);
+      line-height: 0.85;
+      letter-spacing: 0.01em;
+      color: var(--white);
+      margin-bottom: 0;
+    }
+
+    .hero-h1 .gold { color: var(--gold); }
+
+    .hero-sub {
+      font-size: clamp(1rem, 2.5vw, 1.4rem);
+      font-weight: 300;
+      color: var(--grey);
+      margin-top: 1.5rem;
+      max-width: 520px;
+      line-height: 1.5;
+    }
+
+    .hero-actions {
+      display: flex;
+      gap: 0.75rem;
+      margin-top: 2.5rem;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 0.85rem 1.75rem;
+      text-decoration: none;
+      border: none;
+      cursor: pointer;
+      transition: all 0.15s;
+      display: inline-block;
+    }
+
+    .btn-gold {
+      background: var(--gold);
+      color: #000;
+    }
+
+    .btn-gold:hover { background: var(--gold-bright); }
+
+    .btn-outline {
+      background: transparent;
+      color: var(--white);
+      border: 1px solid var(--border-bright);
+    }
+
+    .btn-outline:hover { border-color: var(--gold); color: var(--gold); }
+
+    /* COUNTDOWN */
+    .hero-countdown {
+      display: flex;
+      gap: 1.5rem;
+      margin-top: 3rem;
+      padding-top: 2rem;
+      border-top: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+
+    .cd-unit { text-align: left; }
+
+    .cd-num {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 3rem;
+      color: var(--gold);
+      line-height: 1;
+      display: block;
+    }
+
+    .cd-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.6rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--grey);
+    }
+
+    .cd-divider {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 3rem;
+      color: var(--border-bright);
+      line-height: 1;
+      align-self: flex-start;
+    }
+
+    /* HERO STATS BAR */
+    .hero-stats {
+      display: flex;
+      border-top: 1px solid var(--border);
+      background: #000;
+    }
+
+    .hero-stat {
+      flex: 1;
+      padding: 1.2rem 2rem;
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+    }
+
+    .hero-stat:last-child { border-right: none; }
+
+    .hero-stat-num {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.8rem;
+      color: var(--gold);
+      line-height: 1;
+    }
+
+    .hero-stat-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.62rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--grey);
+    }
+
+    /* ── TICKER ── */
+    .ticker {
+      background: var(--gold);
+      padding: 0.55rem 0;
+      overflow: hidden;
+      white-space: nowrap;
+      position: relative;
+    }
+
+    .ticker-track {
+      display: inline-flex;
+      animation: ticker-scroll 25s linear infinite;
+    }
+
+    .ticker-track span {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 0.9rem;
+      letter-spacing: 0.2em;
+      color: #000;
+      padding: 0 2rem;
+    }
+
+    .ticker-track span.dot::after {
+      content: '●';
+      margin-left: 2rem;
+      font-size: 0.4rem;
+      vertical-align: middle;
+    }
+
+    @keyframes ticker-scroll {
+      from { transform: translateX(0); }
+      to { transform: translateX(-50%); }
+    }
+
+    /* ── SECTIONS ── */
+    .section {
+      padding: 5rem 2rem;
+      max-width: 1100px;
+      margin: 0 auto;
+      background: #000;
+    }
+
+    .section-full {
+      padding: 5rem 2rem;
+      background: #000;
+    }
+
+    .section-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.68rem;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      color: var(--gold);
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .label::before {
+      content: '';
+      width: 16px;
+      height: 1px;
+      background: var(--gold);
+    }
+
+    .heading {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(3rem, 7vw, 6rem);
+      line-height: 0.88;
+      color: var(--white);
+      margin-bottom: 3rem;
+    }
+
+    .heading .dim { color: var(--border-bright); }
+
+    /* ── POSTS FEED ── */
+    .posts-feed {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      border: 1px solid var(--border);
+      background: #000;
+    }
+
+    .post-item {
+      padding: 1.5rem;
+      border-bottom: 1px solid var(--border);
+      background: #000;
+      transition: background 0.15s;
+      position: relative;
+    }
+
+    .post-item:last-child { border-bottom: none; }
+    .post-item:hover { background: #0A0A0A; }
+
+    .post-item::before {
+      content: '';
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 2px;
+      background: var(--gold);
+      opacity: 0;
+      transition: opacity 0.15s;
+    }
+
+    .post-item:hover::before { opacity: 1; }
+
+    .post-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.75rem;
+    }
+
+    .post-identity {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+
+    .post-avatar {
+      width: 32px;
+      height: 32px;
+      background: var(--gold);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 0.9rem;
+      color: #000;
+      flex-shrink: 0;
+    }
+
+    .post-name {
+      font-weight: 700;
+      font-size: 0.85rem;
+      color: var(--white);
+    }
+
+    .post-handle {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      color: var(--grey);
+    }
+
+    .post-time {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.68rem;
+      color: var(--grey);
+    }
+
+    .post-text {
+      font-size: 0.95rem;
+      line-height: 1.65;
+      color: #E0E0E0;
+      margin-bottom: 0.75rem;
+    }
+
+    .post-match-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.68rem;
+      color: var(--grey);
+      border: 1px solid var(--border);
+      padding: 0.25rem 0.6rem;
+      background: #000;
+    }
+
+    .post-match-tag strong { color: var(--gold); }
+
+    .loading-post {
+      padding: 1.5rem;
+      text-align: center;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--grey);
+      letter-spacing: 0.1em;
+      background: #000;
+      border-bottom: 1px solid var(--border);
+    }
+
+    /* ── UPCOMING MATCHES ── */
+    .matches-table {
+      width: 100%;
+      border-collapse: collapse;
+      border: 1px solid var(--border);
+      background: #000;
+    }
+
+    .matches-table th {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.62rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--grey);
+      padding: 0.8rem 1.2rem;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      background: #000;
+    }
+
+    .matches-table td {
+      padding: 1rem 1.2rem;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.88rem;
+      background: #000;
+    }
+
+    .matches-table tr:last-child td { border-bottom: none; }
+    .matches-table tr:hover td { background: #0A0A0A; }
+
+    .match-teams {
+      font-weight: 700;
+      color: var(--white);
+      letter-spacing: 0.02em;
+    }
+
+    .match-vs {
+      color: var(--grey);
+      font-weight: 400;
+      margin: 0 0.4rem;
+    }
+
+    .match-comp {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem;
+      color: var(--grey);
+    }
+
+    .match-time {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--gold);
+    }
+
+    .verdict-badge {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.62rem;
+      letter-spacing: 0.1em;
+      color: var(--grey);
+      border: 1px solid var(--border);
+      padding: 0.2rem 0.5rem;
+      background: #000;
+    }
+
+    /* ── UTILITY CARDS ── */
+    .utility-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
+    }
+
+    .utility-card {
+      background: #000;
+      padding: 2rem;
+      transition: background 0.15s;
+    }
+
+    .utility-card:hover { background: #0A0A0A; }
+
+    .utility-n {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 4rem;
+      color: var(--border);
+      line-height: 1;
+      margin-bottom: 1rem;
+      transition: color 0.15s;
+    }
+
+    .utility-card:hover .utility-n { color: var(--border-bright); }
+
+    .utility-title {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--gold);
+      margin-bottom: 0.6rem;
+    }
+
+    .utility-desc {
+      font-size: 0.88rem;
+      line-height: 1.65;
+      color: var(--grey);
+    }
+
+    /* ── TOKENOMICS ── */
+    .token-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
+      margin-bottom: 1.5rem;
+    }
+
+    .token-cell {
+      background: #000;
+      padding: 2rem;
+    }
+
+    .token-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.62rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--grey);
+      margin-bottom: 0.5rem;
+    }
+
+    .token-value {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 2.8rem;
+      color: var(--gold);
+      line-height: 1;
+    }
+
+    .token-note {
+      font-size: 0.78rem;
+      color: var(--grey);
+      margin-top: 0.35rem;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* ── BURN TIMELINE ── */
+    .burn-list {
+      border: 1px solid var(--border);
+      background: #000;
+    }
+
+    .burn-row {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      padding: 1.2rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      background: #000;
+      transition: background 0.15s;
+    }
+
+    .burn-row:last-child { border-bottom: none; }
+    .burn-row:hover { background: #0A0A0A; }
+
+    .burn-badge {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 0.78rem;
+      letter-spacing: 0.12em;
+      background: var(--gold);
+      color: #000;
+      padding: 0.25rem 0.65rem;
+      white-space: nowrap;
+      min-width: 130px;
+      text-align: center;
+    }
+
+    .burn-desc {
+      font-size: 0.88rem;
+      color: var(--light-grey);
+      flex: 1;
+      font-family: 'Space Grotesk', sans-serif;
+    }
+
+    .burn-amount {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.3rem;
+      color: var(--gold);
+      white-space: nowrap;
+    }
+
+    /* ── WAGER SECTION ── */
+    .wager-wrap {
+      border: 1px solid var(--border);
+      background: #000;
+      overflow: hidden;
+    }
+
+    .wager-header {
+      padding: 1.5rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #000;
+    }
+
+    .wager-match-name {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.8rem;
+      color: var(--white);
+      line-height: 1;
+    }
+
+    .wager-comp {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem;
+      color: var(--grey);
+      margin-top: 0.25rem;
+    }
+
+    .live-pill {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.65rem;
+      letter-spacing: 0.12em;
+      color: var(--gold);
+      border: 1px solid rgba(200,151,26,0.4);
+      padding: 0.3rem 0.7rem;
+      background: rgba(200,151,26,0.06);
+    }
+
+    .live-dot {
+      width: 5px;
+      height: 5px;
+      background: var(--gold);
+      border-radius: 50%;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+    .wager-body {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+      background: #000;
+    }
+
+    .wager-left {
+      padding: 1.5rem;
+      border-right: 1px solid var(--border);
+      background: #000;
+    }
+
+    .wager-right {
+      padding: 1.5rem;
+      background: #000;
+    }
+
+    .coach-verdict {
+      font-size: 0.88rem;
+      line-height: 1.65;
+      color: var(--light-grey);
+      font-style: italic;
+      border-left: 2px solid var(--gold);
+      padding-left: 1rem;
+      margin-bottom: 1.2rem;
+    }
+
+    .odds-row {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .odd-pill {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0.5rem 0.9rem;
+      border: 1px solid var(--border);
+      background: #000;
+      color: var(--light-grey);
+      cursor: pointer;
+      transition: all 0.15s;
+      letter-spacing: 0.05em;
+    }
+
+    .odd-pill:hover, .odd-pill.active {
+      background: var(--gold);
+      color: #000;
+      border-color: var(--gold);
+    }
+
+    .wager-field-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.62rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--grey);
+      margin-bottom: 0.4rem;
+    }
+
+    .wager-field-value {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 2.5rem;
+      color: var(--gold);
+      line-height: 1;
+      margin-bottom: 1.2rem;
+    }
+
+    .wager-input {
+      width: 100%;
+      background: #000;
+      border: 1px solid var(--border);
+      color: var(--gold);
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 2rem;
+      padding: 0.6rem 0.8rem;
+      outline: none;
+      transition: border-color 0.15s;
+      margin-bottom: 0.5rem;
+    }
+
+    .wager-input:focus { border-color: var(--gold); }
+
+    /* ── FAQ ── */
+    .faq-list {
+      border: 1px solid var(--border);
+      background: #000;
+    }
+
+    .faq-row {
+      border-bottom: 1px solid var(--border);
+      background: #000;
+      cursor: pointer;
+    }
+
+    .faq-row:last-child { border-bottom: none; }
+
+    .faq-q {
+      padding: 1.2rem 1.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: 600;
+      font-size: 0.9rem;
+      color: var(--white);
+      background: #000;
+      transition: background 0.15s;
+    }
+
+    .faq-row:hover .faq-q { background: #0A0A0A; }
+
+    .faq-icon {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.1rem;
+      color: var(--gold);
+      flex-shrink: 0;
+    }
+
+    .faq-a {
+      padding: 0 1.5rem 1.2rem;
+      font-size: 0.88rem;
+      line-height: 1.7;
+      color: var(--grey);
+      display: none;
+      background: #000;
+    }
+
+    .faq-row.open .faq-a { display: block; }
+    .faq-row.open .faq-icon::after { content: '−'; }
+    .faq-icon::after { content: '+'; }
+    .faq-icon { font-size: 0; }
+    .faq-icon::after { font-size: 1.1rem; }
+
+    /* ── DIVIDER ── */
+    .divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      background: #000;
+      margin: 0;
+    }
+
+    /* ── FOOTER ── */
+    footer {
+      background: #000;
+      border-top: 1px solid var(--border);
+      padding: 2.5rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 1.5rem;
+    }
+
+    .footer-logo {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.5rem;
+      color: var(--white);
+      letter-spacing: 0.08em;
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 1.5rem;
+      list-style: none;
+      flex-wrap: wrap;
+    }
+
+    .footer-links a {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--grey);
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+
+    .footer-links a:hover { color: var(--gold); }
+
+    .footer-disc {
+      font-size: 0.72rem;
+      color: var(--grey);
+      max-width: 360px;
+      line-height: 1.5;
+      font-family: 'JetBrains Mono', monospace;
+      opacity: 0.5;
+    }
+
+    /* ── MOBILE ── */
+    @media (max-width: 768px) {
+      nav { padding: 0 1.2rem; }
+      .nav-links { display: none; }
+      .hero-content { padding: 7rem 1.2rem 2rem; }
+      .hero-stats { flex-wrap: wrap; }
+      .hero-stat { min-width: 50%; border-right: none; border-bottom: 1px solid var(--border); }
+      .section { padding: 3.5rem 1.2rem; }
+      .section-full { padding: 3.5rem 1.2rem; }
+      .token-grid { grid-template-columns: 1fr; }
+      .wager-body { grid-template-columns: 1fr; }
+      .wager-left { border-right: none; border-bottom: 1px solid var(--border); }
+      footer { flex-direction: column; align-items: flex-start; }
+      .matches-table { font-size: 0.8rem; }
+      .matches-table td, .matches-table th { padding: 0.7rem 0.8rem; }
+    }
+
+    /* ── ANIMATIONS ── */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(24px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .fade-up { animation: fadeUp 0.5s ease forwards; }
+    .delay-1 { animation-delay: 0.1s; opacity: 0; }
+    .delay-2 { animation-delay: 0.2s; opacity: 0; }
+    .delay-3 { animation-delay: 0.3s; opacity: 0; }
+    .delay-4 { animation-delay: 0.4s; opacity: 0; }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-left">
+    <span class="nav-logo">The Coach</span>
+    <span class="nav-ticker-badge">$COACH</span>
+  </div>
+  <ul class="nav-links">
+    <li><a href="#verdicts">Verdicts</a></li>
+    <li><a href="#matches">Matches</a></li>
+    <li><a href="#utility">Utility</a></li>
+    <li><a href="#tokenomics">Token</a></li>
+    <li><a href="#wager">Wager</a></li>
+  </ul>
+  <a href="https://pump.fun" class="nav-buy" target="_blank">Buy $COACH ↗</a>
+</nav>
+
+<!-- HERO -->
+<div class="hero" style="background:#000;">
+  <div class="hero-content">
+    <div class="hero-overline fade-up">World Cup 2026 · Solana · @thecoachonchain</div>
+    <h1 class="hero-h1 fade-up delay-1">THE<br/><span class="gold">COACH</span></h1>
+    <p class="hero-sub fade-up delay-2">AI football manager. Never coached a game. Never been wrong. Automated match verdicts after every whistle.</p>
+    <div class="hero-actions fade-up delay-3">
+      <a href="https://pump.fun" class="btn btn-gold" target="_blank">Buy $COACH on pump.fun</a>
+      <a href="https://x.com/thecoachonchain" class="btn btn-outline" target="_blank">Follow on X</a>
+    </div>
+    <div class="hero-countdown fade-up delay-4">
+      <div class="cd-unit">
+        <span class="cd-num" id="cd-d">00</span>
+        <span class="cd-label">Days</span>
+      </div>
+      <span class="cd-divider">:</span>
+      <div class="cd-unit">
+        <span class="cd-num" id="cd-h">00</span>
+        <span class="cd-label">Hours</span>
+      </div>
+      <span class="cd-divider">:</span>
+      <div class="cd-unit">
+        <span class="cd-num" id="cd-m">00</span>
+        <span class="cd-label">Mins</span>
+      </div>
+      <span class="cd-divider">:</span>
+      <div class="cd-unit">
+        <span class="cd-num" id="cd-s">00</span>
+        <span class="cd-label">Secs</span>
+      </div>
+      <div style="display:flex;align-items:center;padding-left:1rem;">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:0.65rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--grey);">Until WC 2026 Kickoff</span>
+      </div>
+    </div>
+  </div>
+  <div class="hero-stats" id="hero-stats">
+    <div class="hero-stat">
+      <span class="hero-stat-num" id="stat-posts">—</span>
+      <span class="hero-stat-label">Verdicts Posted</span>
+    </div>
+    <div class="hero-stat">
+      <span class="hero-stat-num" id="stat-matches">—</span>
+      <span class="hero-stat-label">Matches Covered</span>
+    </div>
+    <div class="hero-stat">
+      <span class="hero-stat-num">64</span>
+      <span class="hero-stat-label">WC 2026 Matches</span>
+    </div>
+    <div class="hero-stat">
+      <span class="hero-stat-num">0</span>
+      <span class="hero-stat-label">Apologies Given</span>
+    </div>
+  </div>
+</div>
+
+<!-- TICKER -->
+<div class="ticker">
+  <div class="ticker-track">
+    <span class="dot">$COACH</span><span class="dot">THE COACH KNOWS BEST</span>
+    <span class="dot">64 MATCHES</span><span class="dot">64 VERDICTS</span>
+    <span class="dot">NO FILTER</span><span class="dot">NO MERCY</span>
+    <span class="dot">WORLD CUP 2026</span><span class="dot">SOLANA</span>
+    <span class="dot">BUY ON PUMP.FUN</span><span class="dot">@THECOACHONCHAIN</span>
+    <span class="dot">$COACH</span><span class="dot">THE COACH KNOWS BEST</span>
+    <span class="dot">64 MATCHES</span><span class="dot">64 VERDICTS</span>
+    <span class="dot">NO FILTER</span><span class="dot">NO MERCY</span>
+    <span class="dot">WORLD CUP 2026</span><span class="dot">SOLANA</span>
+    <span class="dot">BUY ON PUMP.FUN</span><span class="dot">@THECOACHONCHAIN</span>
+  </div>
+</div>
+
+<!-- VERDICTS FEED -->
+<div class="section-full" id="verdicts" style="background:#000;">
+  <div class="section-inner">
+    <div class="label">Latest From The Coach</div>
+    <h2 class="heading">Verdicts<br/><span class="dim">Feed</span></h2>
+    <div class="posts-feed" id="posts-feed">
+      <div class="loading-post">Loading verdicts...</div>
+    </div>
+    <div style="margin-top:1rem;text-align:right;">
+      <a href="https://x.com/thecoachonchain" target="_blank" style="font-family:'JetBrains Mono',monospace;font-size:0.72rem;letter-spacing:0.1em;color:var(--gold);text-decoration:none;">View all on X →</a>
+    </div>
+  </div>
+</div>
+
+<hr class="divider"/>
+
+<!-- UPCOMING MATCHES -->
+<div class="section-full" id="matches" style="background:#000;">
+  <div class="section-inner">
+    <div class="label">The Coach Is Watching</div>
+    <h2 class="heading">Upcoming<br/><span class="dim">Matches</span></h2>
+    <table class="matches-table" id="matches-table">
+      <thead>
+        <tr>
+          <th>Match</th>
+          <th>Competition</th>
+          <th>Time</th>
+          <th>Verdict</th>
+        </tr>
+      </thead>
+      <tbody id="matches-body">
+        <tr><td colspan="4" style="color:var(--grey);font-family:'JetBrains Mono',monospace;font-size:0.75rem;text-align:center;padding:2rem;background:#000;">Loading matches...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<hr class="divider"/>
+
+<!-- UTILITY -->
+<div class="section-full" id="utility" style="background:#000;">
+  <div class="section-inner">
+    <div class="label">Why Hold $COACH</div>
+    <h2 class="heading">The Coach<br/><span class="dim">Rewards Believers</span></h2>
+    <div class="utility-grid">
+      <div class="utility-card">
+        <div class="utility-n">01</div>
+        <div class="utility-title">Match Wagering</div>
+        <p class="utility-desc">Hold $COACH to place bets on match outcomes. Payouts in $COACH. The Coach posts his prediction before every match — follow his lead or fade him.</p>
+      </div>
+      <div class="utility-card">
+        <div class="utility-n">02</div>
+        <div class="utility-title">Burn Mechanic</div>
+        <p class="utility-desc">Every World Cup elimination triggers an automatic token burn. Supply shrinks with each round. 48 group exits. 16 knockouts. One mega-burn at the final.</p>
+      </div>
+      <div class="utility-card">
+        <div class="utility-n">03</div>
+        <div class="utility-title">Formation Voting</div>
+        <p class="utility-desc">Before each match, holders vote on the ideal lineup. The Coach publishes the community formation on X — then roasts the real coach's actual choice.</p>
+      </div>
+      <div class="utility-card">
+        <div class="utility-n">04</div>
+        <div class="utility-title">Roast Requests</div>
+        <p class="utility-desc">Burn $COACH tokens to commission a custom public roast of any coach or player. Posted on X. The bigger the burn, the more brutal the verdict.</p>
+      </div>
+      <div class="utility-card">
+        <div class="utility-n">05</div>
+        <div class="utility-title">Verdict Voting</div>
+        <p class="utility-desc">After each match, holders vote on the worst tactical decision. Winners of the correct verdict share a $COACH airdrop pool.</p>
+      </div>
+      <div class="utility-card">
+        <div class="utility-n">06</div>
+        <div class="utility-title">Press Conference</div>
+        <p class="utility-desc">Holders submit questions. The Coach answers in full press conference mode on Telegram — arrogant, opinionated, 100% convinced he's right.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr class="divider"/>
+
+<!-- WAGER -->
+<div class="section-full" id="wager" style="background:#000;">
+  <div class="section-inner">
+    <div class="label">Wager With $COACH</div>
+    <h2 class="heading">Place Your Bet.<br/><span class="dim">The Coach Already Knows.</span></h2>
+    <div class="wager-wrap">
+      <div class="wager-header" style="background:#000;">
+        <div>
+          <div class="wager-match-name">Netherlands vs Uruguay</div>
+          <div class="wager-comp">WC 2026 · Group C · June 18</div>
+        </div>
+        <div class="live-pill"><div class="live-dot"></div>Betting Open</div>
+      </div>
+      <div class="wager-body">
+        <div class="wager-left">
+          <p class="coach-verdict">"Oranje will win this. Not because Koeman deserves it — because Uruguay's striker hasn't scored in 4 games. Even he can't mess this up."</p>
+          <div class="odds-row">
+            <button class="odd-pill active" data-mult="1.85">NED WIN 1.85×</button>
+            <button class="odd-pill" data-mult="3.20">DRAW 3.20×</button>
+            <button class="odd-pill" data-mult="4.10">URU WIN 4.10×</button>
+          </div>
+        </div>
+        <div class="wager-right">
+          <div class="wager-field-label">Your wager ($COACH)</div>
+          <input type="number" class="wager-input" id="wager-amount" value="1000"/>
+          <div class="wager-field-label">Potential return</div>
+          <div class="wager-field-value" id="wager-return">1,850 $COACH</div>
+          <a href="#" class="btn btn-gold" style="width:100%;text-align:center;display:block;">Connect Wallet to Wager</a>
+          <p style="font-size:0.68rem;color:var(--grey);margin-top:0.5rem;font-family:'JetBrains Mono',monospace;line-height:1.5;">Hold $COACH in your Solana wallet to participate.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr class="divider"/>
+
+<!-- BURN SCHEDULE -->
+<div class="section-full" id="burn" style="background:#000;">
+  <div class="section-inner">
+    <div class="label">Deflationary by Design</div>
+    <h2 class="heading">Burn<br/><span class="dim">Schedule</span></h2>
+    <p style="color:var(--grey);font-size:0.9rem;max-width:560px;line-height:1.7;margin-bottom:2rem;">Every team eliminated from the World Cup triggers an automatic token burn. As the tournament progresses, supply drops — and $COACH gets more scarce.</p>
+    <div class="burn-list" id="burn-list">
+      <div class="burn-row">
+        <div class="burn-badge">Group Stage</div>
+        <div class="burn-desc">16 teams eliminated — 16 simultaneous burns</div>
+        <div class="burn-amount">16× BURN</div>
+      </div>
+      <div class="burn-row">
+        <div class="burn-badge">Round of 32</div>
+        <div class="burn-desc">16 more out — The Coach has no mercy</div>
+        <div class="burn-amount">16× BURN</div>
+      </div>
+      <div class="burn-row">
+        <div class="burn-badge">Round of 16</div>
+        <div class="burn-desc">8 teams eliminated after 90 minutes of misery</div>
+        <div class="burn-amount">8× BURN</div>
+      </div>
+      <div class="burn-row">
+        <div class="burn-badge">Quarter Finals</div>
+        <div class="burn-desc">4 teams out — The Coach told them so</div>
+        <div class="burn-amount">4× BURN</div>
+      </div>
+      <div class="burn-row">
+        <div class="burn-badge">Semi Finals</div>
+        <div class="burn-desc">2 teams eliminated — massive community burn event</div>
+        <div class="burn-amount">2× BURN</div>
+      </div>
+      <div class="burn-row">
+        <div class="burn-badge" style="background:#fff;color:#000;">🏆 Final</div>
+        <div class="burn-desc">Runner-up eliminated — final mega burn. Supply at minimum.</div>
+        <div class="burn-amount" style="color:#fff;">MEGA BURN</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr class="divider"/>
+
+<!-- TOKENOMICS -->
+<div class="section-full" id="tokenomics" style="background:#000;">
+  <div class="section-inner">
+    <div class="label">Token Details</div>
+    <h2 class="heading">$COACH<br/><span class="dim">Tokenomics</span></h2>
+    <div class="token-grid">
+      <div class="token-cell">
+        <div class="token-label">Total Supply</div>
+        <div class="token-value">1B</div>
+        <div class="token-note">1,000,000,000 $COACH</div>
+      </div>
+      <div class="token-cell">
+        <div class="token-label">Chain</div>
+        <div class="token-value">SOL</div>
+        <div class="token-note">Solana — fast, cheap, meme-native</div>
+      </div>
+      <div class="token-cell">
+        <div class="token-label">Launch Platform</div>
+        <div class="token-value">FAIR</div>
+        <div class="token-note">pump.fun — no presale, no team allocation</div>
+      </div>
+      <div class="token-cell">
+        <div class="token-label">Team Allocation</div>
+        <div class="token-value">0%</div>
+        <div class="token-note">The Coach needs no unfair advantage</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr class="divider"/>
+
+<!-- FAQ -->
+<div class="section-full" id="faq" style="background:#000;">
+  <div class="section-inner">
+    <div class="label">Questions</div>
+    <h2 class="heading">The Coach<br/><span class="dim">Answers</span></h2>
+    <div class="faq-list">
+      <div class="faq-row">
+        <div class="faq-q">What is $COACH? <span class="faq-icon"></span></div>
+        <div class="faq-a">$COACH is the token of The Coach — an autonomous AI football pundit on X that posts automated match verdicts after every World Cup 2026 game. The bot pulls live match data and posts within minutes of the final whistle.</div>
+      </div>
+      <div class="faq-row">
+        <div class="faq-q">How does the burn mechanic work? <span class="faq-icon"></span></div>
+        <div class="faq-a">Every time a team is eliminated from the World Cup, a pre-programmed token burn triggers on-chain. Supply decreases as the tournament progresses — creating natural deflationary pressure across all 64 matches.</div>
+      </div>
+      <div class="faq-row">
+        <div class="faq-q">How do I wager with $COACH? <span class="faq-icon"></span></div>
+        <div class="faq-a">Connect your Solana wallet, hold $COACH tokens, and place bets on match outcomes. Payouts are distributed in $COACH after the final whistle. The Coach always posts his prediction before the match starts.</div>
+      </div>
+      <div class="faq-row">
+        <div class="faq-q">Is this a rug pull? <span class="faq-icon"></span></div>
+        <div class="faq-a">Fair launch on pump.fun — no presale, no team allocation, no insider wallets. The Coach doesn't need advantages. The bonding curve is public and transparent. DYOR.</div>
+      </div>
+      <div class="faq-row">
+        <div class="faq-q">What happens after the World Cup? <span class="faq-icon"></span></div>
+        <div class="faq-a">The Coach doesn't retire. After the WC he continues with Champions League, Premier League, Nations League, and every major tournament. The bot posts as long as football is played.</div>
+      </div>
+      <div class="faq-row">
+        <div class="faq-q">How is The Coach automated? <span class="faq-icon"></span></div>
+        <div class="faq-a">The Coach runs on a Node.js backend that polls live football data every 15 minutes. When a match ends, it automatically generates a verdict using AI and posts to X within minutes. 24/7, no manual input needed.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<footer style="background:#000;">
+  <div class="footer-logo">The Coach — $COACH</div>
+  <ul class="footer-links">
+    <li><a href="https://x.com/thecoachonchain" target="_blank">X / Twitter</a></li>
+    <li><a href="https://t.me/thecoachonchain" target="_blank">Telegram</a></li>
+    <li><a href="https://pump.fun" target="_blank">pump.fun</a></li>
+    <li><a href="#tokenomics">Tokenomics</a></li>
+    <li><a href="#faq">FAQ</a></li>
+  </ul>
+  <p class="footer-disc">$COACH is a meme token on Solana. Not financial advice. DYOR. Crypto is high risk. The Coach is always right but your portfolio might not be.</p>
+</footer>
+
+<script>
+const API = ''; // Set to your backend URL e.g. 'https://thecoach.railway.app'
+
+// ── COUNTDOWN ──
+function updateCountdown() {
+  const wc = new Date('2026-06-11T18:00:00Z').getTime();
+  const diff = wc - Date.now();
+  if (diff <= 0) return;
+  const d = Math.floor(diff / 86400000);
+  const h = Math.floor((diff % 86400000) / 3600000);
+  const m = Math.floor((diff % 3600000) / 60000);
+  const s = Math.floor((diff % 60000) / 1000);
+  document.getElementById('cd-d').textContent = String(d).padStart(2,'0');
+  document.getElementById('cd-h').textContent = String(h).padStart(2,'0');
+  document.getElementById('cd-m').textContent = String(m).padStart(2,'0');
+  document.getElementById('cd-s').textContent = String(s).padStart(2,'0');
+}
+updateCountdown();
+setInterval(updateCountdown, 1000);
+
+// ── LOAD POSTS ──
+async function loadPosts() {
+  const feed = document.getElementById('posts-feed');
+  try {
+    const res = await fetch(`${API}/api/posts`);
+    const posts = await res.json();
+    if (!posts.length) {
+      feed.innerHTML = `<div class="loading-post">No verdicts yet — The Coach is watching.</div>`;
+      return;
+    }
+    feed.innerHTML = posts.map(p => `
+      <div class="post-item">
+        <div class="post-header">
+          <div class="post-identity">
+            <div class="post-avatar">TC</div>
+            <div>
+              <div class="post-name">The Coach</div>
+              <div class="post-handle">@thecoachonchain</div>
+            </div>
+          </div>
+          <div class="post-time">${new Date(p.timestamp).toLocaleDateString('en-GB', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</div>
+        </div>
+        <p class="post-text">${p.text}</p>
+        ${p.match ? `<span class="post-match-tag"><strong>${p.match}</strong> · ${p.competition || ''}</span>` : ''}
+      </div>
+    `).join('');
+  } catch(e) {
+    // Show demo posts when backend is offline
+    const demoPosts = [
+      { text: "Ancelotti sat on that bench for 90 minutes and wrote absolutely nothing. I had this solved at halftime. Formation wrong, pressing non-existent, subs 20 minutes too late. Embarrassing. $COACH 📋", match: "Real Madrid 1–2 Arsenal", competition: "Champions League", timestamp: new Date().toISOString() },
+      { text: "Koeman selected this squad personally. The result speaks for itself. Give me these players for one session and I win this group by 10 points. They deserve better. They deserve The Coach. $COACH", match: "Netherlands 1–1 Uruguay", competition: "WC 2026 Group C", timestamp: new Date(Date.now()-3600000).toISOString() },
+      { text: "Scaloni won. Messi scored. Nobody is discussing Argentina defending with 9 men for 60 minutes. Parking the bus against a side ranked 14th. Genius? No. Lucky. $COACH 📉", match: "Argentina 1–0 Mexico", competition: "WC 2026 Group D", timestamp: new Date(Date.now()-7200000).toISOString() },
+    ];
+    feed.innerHTML = demoPosts.map(p => `
+      <div class="post-item">
+        <div class="post-header">
+          <div class="post-identity">
+            <div class="post-avatar">TC</div>
+            <div>
+              <div class="post-name">The Coach</div>
+              <div class="post-handle">@thecoachonchain</div>
+            </div>
+          </div>
+          <div class="post-time">${new Date(p.timestamp).toLocaleDateString('en-GB', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</div>
+        </div>
+        <p class="post-text">${p.text}</p>
+        ${p.match ? `<span class="post-match-tag"><strong>${p.match}</strong> · ${p.competition}</span>` : ''}
+      </div>
+    `).join('');
+  }
+}
+
+// ── LOAD MATCHES ──
+async function loadMatches() {
+  const tbody = document.getElementById('matches-body');
+  try {
+    const res = await fetch(`${API}/api/matches`);
+    const matches = await res.json();
+    if (!matches.length) throw new Error('no matches');
+    tbody.innerHTML = matches.map(m => `
+      <tr>
+        <td><span class="match-teams">${m.home} <span class="match-vs">vs</span> ${m.away}</span></td>
+        <td><span class="match-comp">${m.competition}</span></td>
+        <td><span class="match-time">${new Date(m.time).toLocaleTimeString('nl-NL', {hour:'2-digit',minute:'2-digit'})}</span></td>
+        <td><span class="verdict-badge">Incoming</span></td>
+      </tr>
+    `).join('');
+  } catch(e) {
+    const demo = [
+      ['Brazil','Germany','FIFA World Cup','Jun 14 · 21:00'],
+      ['France','England','FIFA World Cup','Jun 15 · 18:00'],
+      ['Spain','Portugal','FIFA World Cup','Jun 16 · 21:00'],
+      ['Netherlands','Argentina','FIFA World Cup','Jun 18 · 18:00'],
+      ['USA','Mexico','FIFA World Cup','Jun 19 · 21:00'],
+    ];
+    tbody.innerHTML = demo.map(([h,a,c,t]) => `
+      <tr>
+        <td><span class="match-teams">${h} <span class="match-vs">vs</span> ${a}</span></td>
+        <td><span class="match-comp">${c}</span></td>
+        <td><span class="match-time">${t}</span></td>
+        <td><span class="verdict-badge">Incoming</span></td>
+      </tr>
+    `).join('');
+  }
+}
+
+// ── LOAD STATS ──
+async function loadStats() {
+  try {
+    const res = await fetch(`${API}/api/stats`);
+    const stats = await res.json();
+    document.getElementById('stat-posts').textContent = stats.totalPosts || '0';
+    document.getElementById('stat-matches').textContent = stats.matchesCovered || '0';
+  } catch(e) {
+    document.getElementById('stat-posts').textContent = '0';
+    document.getElementById('stat-matches').textContent = '0';
+  }
+}
+
+// ── WAGER ──
+document.querySelectorAll('.odd-pill').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.odd-pill').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    updateReturn();
+  });
+});
+
+function updateReturn() {
+  const active = document.querySelector('.odd-pill.active');
+  const mult = active ? parseFloat(active.dataset.mult) : 1.85;
+  const amount = parseInt(document.getElementById('wager-amount').value) || 0;
+  document.getElementById('wager-return').textContent = Math.round(amount * mult).toLocaleString() + ' $COACH';
+}
+
+document.getElementById('wager-amount').addEventListener('input', updateReturn);
+
+// ── FAQ ──
+document.querySelectorAll('.faq-row').forEach(row => {
+  row.querySelector('.faq-q').addEventListener('click', () => {
+    const open = row.classList.contains('open');
+    document.querySelectorAll('.faq-row').forEach(r => r.classList.remove('open'));
+    if (!open) row.classList.add('open');
+  });
+});
+
+// ── INIT ──
+loadPosts();
+loadMatches();
+loadStats();
+setInterval(loadPosts, 60000);   // refresh every 60s
+setInterval(loadStats, 30000);   // refresh stats every 30s
+</script>
+
+</body>
+</html>
