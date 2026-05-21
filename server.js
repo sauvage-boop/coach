@@ -158,7 +158,7 @@ KEY SUBS: ${subs || 'none'}`;
 // ── GENERATE & POST ──────────────────────────────────────────
 async function generateVerdict(matchData) {
   const msg = await claude.messages.create({
-    model: 'claude-sonnet-4-5',
+    model: 'claude-haiku-4-5-20251001',
     max_tokens: 200,
     system: COACH_PERSONA,
     messages: [{ role: 'user', content: `Write ONE post-match tweet. Be specific. Under 260 chars.\n\n${matchData}` }]
@@ -283,9 +283,69 @@ async function postHotTake() {
   saveData(data);
 }
 
-// ── CRON JOBS ────────────────────────────────────────────────
-cron.schedule('*/15 * * * *', runMatchBot);       // Check matches every 15 min
-cron.schedule('0 18 * * *', postHotTake);         // 1x per day at 6pm only
+// ── WK NEWS BOT ─────────────────────────────────────────────
+const postedNewsHeadlines = new Set();
+
+async function fetchAndPostWCNews() {
+  console.log('📰 Checking WC news...');
+  try {
+    // Use Claude with web_search to find latest WC 2026 news
+    const msg = await claude.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 1000,
+      tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+      system: COACH_PERSONA,
+      messages: [{
+        role: 'user',
+        content: `Search for the very latest FIFA World Cup 2026 news from today. Look for: squad announcements, player injuries, coach decisions, group stage news, team selections, or any major WC2026 story. 
+
+Then write ONE tweet reacting to the most interesting piece of news you find, in character as The Coach. Be specific about the actual news. Under 260 characters. End with $COACH.
+
+If there is no new news, respond with exactly: NO_NEWS`
+      }]
+    });
+
+    // Extract text response
+    const textBlock = msg.content.find(b => b.type === 'text');
+    if (!textBlock) return;
+
+    const text = textBlock.text.trim();
+    if (text === 'NO_NEWS' || text.includes('NO_NEWS')) return;
+
+    // Avoid duplicate posts
+    const key = text.substring(0, 50);
+    if (postedNewsHeadlines.has(key)) return;
+    postedNewsHeadlines.add(key);
+
+    // Post to X
+    const result = await postToTwitter(text);
+    if (result.success) {
+      const data = loadData();
+      data.posts.unshift({
+        id: Date.now(),
+        tweetId: result.id || null,
+        text,
+        match: null,
+        competition: 'WC 2026 News',
+        timestamp: new Date().toISOString(),
+        posted: true
+      });
+      if (data.posts.length > 50) data.posts = data.posts.slice(0, 50);
+      data.stats.totalPosts++;
+      saveData(data);
+      console.log('📰 News post:', text);
+    }
+  } catch (e) {
+    console.error('News bot error:', e.message);
+  }
+}
+
+
+cron.schedule('*/15 * * * *', runMatchBot);          // Check matches every 15 min
+cron.schedule('0 18 * * *', postHotTake);            // Hot take 1x/day at 6pm
+cron.schedule('0 9 * * *', fetchAndPostWCNews);      // WC news at 9am
+cron.schedule('0 13 * * *', fetchAndPostWCNews);     // WC news at 1pm
+cron.schedule('0 20 * * *', fetchAndPostWCNews);     // WC news at 8pm
 
 // ── API ROUTES ───────────────────────────────────────────────
 
@@ -330,6 +390,12 @@ app.post('/api/post', async (req, res) => {
 // Manual hot take trigger
 app.post('/api/hottake', async (req, res) => {
   await postHotTake();
+  res.json({ success: true });
+});
+
+// Manual news trigger
+app.post('/api/news', async (req, res) => {
+  await fetchAndPostWCNews();
   res.json({ success: true });
 });
 
