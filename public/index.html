@@ -1420,10 +1420,7 @@ async function loadPosts() {
   try {
     const res = await fetch(`${API}/api/posts`);
     const posts = await res.json();
-    if (!posts.length) {
-      feed.innerHTML = `<div class="loading-post">No verdicts yet — The Coach is watching.</div>`;
-      return;
-    }
+    if (!posts.length) throw new Error('empty');
     feed.innerHTML = posts.map(p => `
       <div class="post-item">
         <div class="post-header">
