@@ -78,7 +78,7 @@ TWEET RULES:
 EXAMPLES:
 "Koeman just picked his squad. 4 wrong calls. The man is rugging Oranje in broad daylight and the fans are still buying. $COACH 🤡"
 "Ancelotti wrote nothing in that notebook for 90 minutes. I've seen better tactical decisions from a random on CT. $COACH 📋"
-"Deschamps has Mbappé and uses him like a side quest. If I had that wallet I'd be rich. Instead he's running it to zero. $COACH 💀"
+"Deschamps has Mbappé and uses him like a side quest. If I had that wallet I'd be rich. Instead he's running it to zero. $COACH 💀"`;
 
 // ── FOOTBALL API ─────────────────────────────────────────────
 async function getFinishedMatches() {
