@@ -477,7 +477,71 @@ app.post('/api/website-verdict', async (req, res) => {
   res.json({ success: true });
 });
 
-// ── WAGER SYSTEM ─────────────────────────────────────────────
+const HELIUS_API_KEY = process.env.HELIUS_API_KEY || '173aca1b-d8da-4a82-be02-14017bf5584d';
+const HELIUS_RPC = `https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`;
+
+async function verifyCoachTransaction(txHash, expectedWallet, expectedAmount) {
+  try {
+    await new Promise(r => setTimeout(r, 3000)); // Wait for confirmation
+
+    const res = await axios.post(HELIUS_RPC, {
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'getTransaction',
+      params: [txHash, { encoding: 'jsonParsed', maxSupportedTransactionVersion: 0 }]
+    });
+
+    const tx = res.data?.result;
+    if (!tx) return { valid: false, error: 'Transaction not found' };
+
+    // Check transaction is not failed
+    if (tx.meta?.err) return { valid: false, error: 'Transaction failed on-chain' };
+
+    // Check instructions for SPL token transfer to treasury
+    const instructions = tx.transaction?.message?.instructions || [];
+    const innerInstructions = tx.meta?.innerInstructions?.flatMap(i => i.instructions) || [];
+    const allInstructions = [...instructions, ...innerInstructions];
+
+    for (const ix of allInstructions) {
+      const parsed = ix.parsed;
+      if (!parsed) continue;
+
+      // Check for SPL token transfer
+      if ((parsed.type === 'transfer' || parsed.type === 'transferChecked') && parsed.info) {
+        const info = parsed.info;
+        const destination = info.destination || info.account;
+        const amount = parseFloat(info.amount || info.tokenAmount?.uiAmount || 0);
+
+        // Verify destination is treasury and amount matches
+        if (destination === TREASURY_WALLET && amount >= expectedAmount * 0.99) {
+          return { valid: true, amount, txHash };
+        }
+      }
+    }
+
+    // Also check pre/post token balances
+    const preBalances = tx.meta?.preTokenBalances || [];
+    const postBalances = tx.meta?.postTokenBalances || [];
+
+    for (const post of postBalances) {
+      if (post.owner === TREASURY_WALLET) {
+        const pre = preBalances.find(p => p.accountIndex === post.accountIndex);
+        const preAmount = parseFloat(pre?.uiTokenAmount?.uiAmount || 0);
+        const postAmount = parseFloat(post.uiTokenAmount?.uiAmount || 0);
+        const received = postAmount - preAmount;
+
+        if (received >= expectedAmount * 0.99) {
+          return { valid: true, amount: received, txHash };
+        }
+      }
+    }
+
+    return { valid: false, error: 'No valid $COACH transfer to treasury found in this transaction' };
+  } catch (e) {
+    console.error('Helius verification error:', e.message);
+    return { valid: false, error: 'Verification failed: ' + e.message };
+  }
+}
 const WAGER_FILE = path.join(__dirname, 'wagers.json');
 const TREASURY_WALLET = 'DReFFztSXymUsNrKff4e6ozxMbQ3jdV6rCUEuuh9D3ty';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'thecoach2026';
@@ -527,11 +591,16 @@ app.post('/api/wager/bet', async (req, res) => {
   if (amount < 100) return res.status(400).json({ error: 'Minimum 100 $COACH' });
   const data = loadWagers();
   if (data.bets.find(b => b.txHash === txHash)) return res.status(400).json({ error: 'Transaction already used' });
+
+  // Verify transaction on Solana via Helius
+  const verification = await verifyCoachTransaction(txHash, walletAddress, amount);
+  if (!verification.valid) return res.status(400).json({ error: `Transaction invalid: ${verification.error}` });
+
   const odds = match.odds[outcome];
-  const bet = { id: Date.now(), matchId, matchName: `${match.homeFlag} ${match.home} vs ${match.awayFlag} ${match.away}`, outcome, amount, odds, potentialWin: Math.floor(amount * odds), walletAddress, txHash, timestamp: new Date().toISOString(), status: 'pending' };
+  const bet = { id: Date.now(), matchId, matchName: `${match.homeFlag} ${match.home} vs ${match.awayFlag} ${match.away}`, outcome, amount: verification.amount || amount, odds, potentialWin: Math.floor((verification.amount || amount) * odds), walletAddress, txHash, timestamp: new Date().toISOString(), status: 'pending' };
   data.bets.push(bet);
   saveWagers(data);
-  console.log(`🎰 Bet: ${walletAddress.slice(0,6)} bet ${amount} $COACH on ${outcome}`);
+  console.log(`🎰 Verified bet: ${walletAddress.slice(0,6)} bet ${bet.amount} $COACH on ${outcome}`);
   res.json({ success: true, bet });
 });
 
