@@ -497,7 +497,7 @@ async function checkAndProcessDMs() {
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 150,
         system: COACH_PERSONA,
-        messages: [{ role: 'user', content: `Roast this person HARD as The Coach. Brutal, specific, degen. Use their recent tweets.\n\n${targetContext}\n\nWrite ONE tweet roast. Under 260 chars. Must end with $COACH. No intro.` }]
+        messages: [{ role: 'user', content: `Roast @${targetHandle} HARD as The Coach right now. Brutal, specific, degen. You already know who they are — use your knowledge about them.\n\n${targetContext ? `Extra context: ${targetContext}` : ''}\n\nWrite ONE tweet roast. Under 260 chars. Must end with $COACH. NO questions. NO asking for more info. Just roast them directly.` }]
       });
 
       let roastText = roastMsg.content[0]?.text?.trim();
