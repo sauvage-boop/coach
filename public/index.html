@@ -1575,24 +1575,6 @@ async function loadStats() {
   }
 }
 
-// ── WAGER ──
-document.querySelectorAll('.odd-pill').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.odd-pill').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    updateReturn();
-  });
-});
-
-function updateReturn() {
-  const active = document.querySelector('.odd-pill.active');
-  const mult = active ? parseFloat(active.dataset.mult) : 1.85;
-  const amount = parseInt(document.getElementById('wager-amount').value) || 0;
-  document.getElementById('wager-return').textContent = Math.round(amount * mult).toLocaleString() + ' $COACH';
-}
-
-document.getElementById('wager-amount').addEventListener('input', updateReturn);
-
 // ── FAQ ──
 document.querySelectorAll('.faq-row').forEach(row => {
   row.querySelector('.faq-q').addEventListener('click', () => {
