@@ -451,16 +451,17 @@ Write ONE tweet reacting to this as The Coach. Under 260 chars. End with $COACH.
 }
 
 // ── DM ROAST BOT ─────────────────────────────────────────────
-const processedDMs = new Set();
-
 async function checkAndProcessDMs() {
   console.log('📬 Checking DMs...');
   try {
-    // Get own user ID first
     const me = await twitter.v2.me();
     const myId = me.data.id;
 
-    // Get DM events using correct endpoint
+    // Load processed DMs from disk
+    const data = loadData();
+    if (!data.processedDMs) data.processedDMs = [];
+    const processedSet = new Set(data.processedDMs);
+
     const dms = await twitter.v2.get('dm_events', {
       'dm_event.fields': 'text,sender_id,created_at,dm_conversation_id',
       'max_results': 20,
@@ -471,8 +472,12 @@ async function checkAndProcessDMs() {
 
     for (const dm of dms.data) {
       if (dm.sender_id === myId) continue;
-      if (processedDMs.has(dm.id)) continue;
-      processedDMs.add(dm.id);
+      if (processedSet.has(dm.id)) continue;
+
+      // Mark as processed immediately
+      processedSet.add(dm.id);
+      data.processedDMs = [...processedSet].slice(-1000);
+      saveData(data);
 
       const text = dm.text?.trim() || '';
       const roastMatch = text.match(/@ROAST\s+@?(\S+)/i);
@@ -481,8 +486,7 @@ async function checkAndProcessDMs() {
       const targetHandle = roastMatch[1].replace('@', '');
       console.log(`🎯 Roast request: @${targetHandle} from DM`);
 
-      // Get target context
-      let targetContext = `Handle: @${targetHandle}`;
+      let targetContext = '';
       try {
         const targetUser = await twitter.v2.userByUsername(targetHandle, { 'user.fields': ['description', 'name'] });
         if (targetUser.data) {
@@ -492,12 +496,11 @@ async function checkAndProcessDMs() {
         }
       } catch(e) {}
 
-      // Generate roast
       const roastMsg = await claudeWithRetry({
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 150,
         system: COACH_PERSONA,
-        messages: [{ role: 'user', content: `Roast @${targetHandle} HARD as The Coach right now. Brutal, specific, degen. You already know who they are — use your knowledge about them.\n\n${targetContext ? `Extra context: ${targetContext}` : ''}\n\nWrite ONE tweet roast. Under 260 chars. Must end with $COACH. NO questions. NO asking for more info. Just roast them directly.` }]
+        messages: [{ role: 'user', content: `Roast @${targetHandle} HARD as The Coach right now. Brutal, specific, degen. You already know who they are.\n\n${targetContext ? `Extra context: ${targetContext}` : ''}\n\nWrite ONE tweet roast. Under 260 chars. Must end with $COACH. NO questions. NO asking for more info. Just roast them directly.` }]
       });
 
       let roastText = roastMsg.content[0]?.text?.trim();
@@ -511,11 +514,11 @@ async function checkAndProcessDMs() {
           await twitter.v2.sendDmToConversation(dm.dm_conversation_id, { text: `Done. The Coach has spoken. Check the timeline. $COACH 📋` });
         } catch(e) {}
 
-        const data = loadData();
-        data.posts.unshift({ id: Date.now(), tweetId: posted.id, text: roastText, match: null, competition: `Roast: @${targetHandle}`, timestamp: new Date().toISOString(), posted: true, source: 'roast_request' });
-        if (data.posts.length > 50) data.posts = data.posts.slice(0, 50);
-        data.stats.totalPosts++;
-        saveData(data);
+        const freshData = loadData();
+        freshData.posts.unshift({ id: Date.now(), tweetId: posted.id, text: roastText, match: null, competition: `Roast: @${targetHandle}`, timestamp: new Date().toISOString(), posted: true, source: 'roast_request' });
+        if (freshData.posts.length > 50) freshData.posts = freshData.posts.slice(0, 50);
+        freshData.stats.totalPosts++;
+        saveData(freshData);
         console.log(`🔥 Roast posted for @${targetHandle}`);
       }
     }
