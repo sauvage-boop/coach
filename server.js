@@ -515,23 +515,39 @@ async function checkAndProcessDMs() {
     if (!data.pendingRoasts) data.pendingRoasts = {};
     const processedSet = new Set(data.processedDMs);
 
-    const dms = await twitter.v2.get('dm_events', {
-      'dm_event.fields': 'text,sender_id,created_at,dm_conversation_id',
-      'max_results': 20,
-      'event_types': 'MessageCreate'
-    });
+    // Get DM events using correct endpoint
+    let dmList = [];
+    try {
+      const data = loadData();
+      const params = {
+        'dm_event.fields': 'text,sender_id,created_at,dm_conversation_id',
+        'max_results': 20,
+        'event_types': 'MessageCreate'
+      };
+      // Only fetch DMs newer than last processed
+      if (data.lastDmId) params['since_id'] = data.lastDmId;
 
-    console.log(`📬 Raw DM response keys: ${Object.keys(dms || {}).join(', ')}`);
-    console.log(`📬 DM data type: ${typeof dms?.data}`);
-    
-    const dmList = Array.isArray(dms?.data) ? dms.data : 
-                   Array.isArray(dms?.data?.data) ? dms.data.data : [];
+      const response = await twitter.v2.get('dm_events', params);
+      dmList = response?.data || [];
+      if (!Array.isArray(dmList)) dmList = [];
+
+      // Save latest DM ID for next run
+      if (dmList.length > 0) {
+        data.lastDmId = dmList[0].id;
+        saveData(data);
+      }
+    } catch(e) {
+      console.error(`📬 DM fetch error: ${e.message}`);
+      return;
+    }
+
     console.log(`📬 DM count: ${dmList.length}`);
     if (!dmList.length) return;
 
     for (const dm of dmList) {
-      if (dm.sender_id === myId) continue;
-      if (processedSet.has(dm.id)) continue;
+      console.log(`📨 DM from ${dm.sender_id}: "${dm.text?.substring(0,50)}"`);
+      if (dm.sender_id === myId) { console.log('⏭️ Skipping own message'); continue; }
+      if (processedSet.has(dm.id)) { console.log(`⏭️ Already processed: ${dm.id}`); continue; }
 
       processedSet.add(dm.id);
       data.processedDMs = [...processedSet].slice(-1000);
