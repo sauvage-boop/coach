@@ -607,6 +607,7 @@ async function checkAndProcessDMs() {
 }
 
 async function executeRoast(dm, targetHandle, convId, burnedAmount) {
+  console.log(`🔥 Executing roast for @${targetHandle}...`);
   let targetContext = '';
   try {
     const targetUser = await twitter.v2.userByUsername(targetHandle, { 'user.fields': ['description', 'name'] });
@@ -614,35 +615,48 @@ async function executeRoast(dm, targetHandle, convId, burnedAmount) {
       const tweets = await twitter.v2.userTimeline(targetUser.data.id, { max_results: 5, exclude: ['retweets', 'replies'] });
       const recentTweets = tweets.data?.data?.map(t => t.text).join(' | ') || '';
       targetContext = `Name: ${targetUser.data.name}\nHandle: @${targetHandle}\nRecent tweets: ${recentTweets}`;
+      console.log(`📋 Got context for @${targetHandle}`);
     }
-  } catch(e) {}
+  } catch(e) {
+    console.log(`⚠️ Could not get context for @${targetHandle}: ${e.message}`);
+  }
 
-  const roastMsg = await claudeWithRetry({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 150,
-    system: COACH_PERSONA,
-    messages: [{ role: 'user', content: `Roast @${targetHandle} HARD as The Coach. Brutal, specific, degen. You know who they are.\n\n${targetContext ? `Context: ${targetContext}` : ''}\n\nONE tweet. Under 260 chars. Must end with $COACH. No intro. Direct roast only.` }]
-  });
+  try {
+    const roastMsg = await claudeWithRetry({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 150,
+      system: COACH_PERSONA,
+      messages: [{ role: 'user', content: `Roast @${targetHandle} HARD as The Coach. Brutal, specific, degen. You know who they are.\n\n${targetContext ? `Context: ${targetContext}` : ''}\n\nONE tweet. Under 260 chars. Must end with $COACH. No intro. Direct roast only.` }]
+    });
 
-  let roastText = roastMsg.content[0]?.text?.trim();
-  if (!roastText || !roastText.includes('$COACH')) return;
-  if (roastText.length > 280) roastText = roastText.substring(0, 277) + '...';
+    let roastText = roastMsg.content[0]?.text?.trim();
+    console.log(`📝 Generated roast: ${roastText?.substring(0, 80)}...`);
+    if (!roastText || !roastText.includes('$COACH')) {
+      console.log('❌ Roast validation failed - missing $COACH');
+      return;
+    }
+    if (roastText.length > 280) roastText = roastText.substring(0, 277) + '...';
 
-  const posted = await postToTwitter(roastText);
+    const posted = await postToTwitter(roastText);
 
-  if (posted.success) {
-    const replyText = burnedAmount
-      ? `Done. ${burnedAmount.toLocaleString()} $COACH burned forever. The Coach has spoken. Check the timeline. 🔥`
-      : `Done. The Coach has spoken. Check the timeline. $COACH 📋`;
+    if (posted.success) {
+      const replyText = burnedAmount
+        ? `Done. ${burnedAmount.toLocaleString()} $COACH burned forever. The Coach has spoken. Check the timeline. 🔥`
+        : `Done. The Coach has spoken. Check the timeline. $COACH 📋`;
 
-    try { await twitter.v2.sendDmToConversation(convId, { text: replyText }); } catch(e) {}
+      try { await twitter.v2.sendDmToConversation(convId, { text: replyText }); } catch(e) {
+        console.log(`⚠️ Could not send DM reply: ${e.message}`);
+      }
 
-    const freshData = loadData();
-    freshData.posts.unshift({ id: Date.now(), tweetId: posted.id, text: roastText, match: null, competition: `Roast: @${targetHandle}${burnedAmount ? ` (${burnedAmount} burned)` : ''}`, timestamp: new Date().toISOString(), posted: true, source: 'roast_request' });
-    if (freshData.posts.length > 50) freshData.posts = freshData.posts.slice(0, 50);
-    freshData.stats.totalPosts++;
-    saveData(freshData);
-    console.log(`🔥 Roast posted for @${targetHandle}${burnedAmount ? ` — ${burnedAmount} $COACH burned` : ''}`);
+      const freshData = loadData();
+      freshData.posts.unshift({ id: Date.now(), tweetId: posted.id, text: roastText, match: null, competition: `Roast: @${targetHandle}`, timestamp: new Date().toISOString(), posted: true, source: 'roast_request' });
+      if (freshData.posts.length > 50) freshData.posts = freshData.posts.slice(0, 50);
+      freshData.stats.totalPosts++;
+      saveData(freshData);
+      console.log(`🔥 Roast posted for @${targetHandle}`);
+    }
+  } catch(e) {
+    console.error(`❌ executeRoast error for @${targetHandle}:`, e.message);
   }
 }
 
