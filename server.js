@@ -320,19 +320,24 @@ const postedNewsHeadlines = new Set();
 async function fetchAndPostWCNews() {
   console.log('📰 Checking WC news...');
   try {
-    // Step 1: Search for news
+    // Step 1: Search for WC 2026 news only
     const searchMsg = await claudeWithRetry({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 300,
       tools: [{ type: 'web_search_20250305', name: 'web_search' }],
       messages: [{
         role: 'user',
-        content: 'Find ONE specific World Cup 2026 news story from today. Return ONLY: headline + 1 sentence summary. Nothing else.'
+        content: 'Search for FIFA World Cup 2026 news only. Must be about: WC2026 squad announcements, WC2026 player selections, WC2026 coach decisions, WC2026 group stage, WC2026 injuries. NO club football. NO other tournaments. ONE specific WC2026 story. Return only headline + 1 sentence. Nothing else.'
       }]
     });
 
     const newsText = searchMsg.content.filter(b => b.type === 'text').map(b => b.text).join(' ').trim();
     if (!newsText || newsText.length < 20) return;
+
+    // Only post if it's actually WC2026 content
+    const wcKeywords = ['world cup', 'wc2026', 'wc 2026', 'squad', 'fifa', 'group', 'qualifier', 'selection', '2026'];
+    const isWC = wcKeywords.some(k => newsText.toLowerCase().includes(k));
+    if (!isWC) { console.log('📰 Skipping non-WC news'); return; }
 
     // Step 2: Generate roast tweet about the news
     const verdictMsg = await claudeWithRetry({
