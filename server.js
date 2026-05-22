@@ -521,10 +521,11 @@ async function checkAndProcessDMs() {
       'event_types': 'MessageCreate'
     });
 
-    console.log(`📬 DM response: ${JSON.stringify(dms?.data?.length)} messages`);
-    if (!dms?.data?.length) return;
+    const dmList = dms?.data?.data || dms?.data || [];
+    console.log(`📬 DM response: ${dmList.length} messages`);
+    if (!dmList.length) return;
 
-    for (const dm of dms.data) {
+    for (const dm of dmList) {
       if (dm.sender_id === myId) continue;
       if (processedSet.has(dm.id)) continue;
 
