@@ -283,14 +283,16 @@ async function runMatchBot() {
 
 // ── HOT TAKES ────────────────────────────────────────────────
 const hotTakes = [
-  "21 days until the World Cup. 32 coaches. 31 of them will disappoint. The Coach is ready. $COACH",
-  "The World Cup squads are almost final. The Coach has already identified 14 selection mistakes. Nobody asked. $COACH 📋",
-  "June 11. The World Cup begins. The Coach will be watching every single match. No coach is safe. $COACH",
-  "Every four years the world's best coaches gather and prove they need The Coach. June 11. $COACH",
-  "World Cup 2026 group stage predictions dropping soon. The Coach has done the analysis. It's not complicated. $COACH",
-  "Watching World Cup qualification tape. Already spotted three coaches who will be embarrassed in June. $COACH 📋",
-  "64 World Cup matches. 64 automatic verdicts. The Coach posts within minutes of every final whistle. $COACH",
-  "The World Cup draw is set. The Coach has already mapped every tactical error that will be made. $COACH",
+  "20 days until the World Cup. 48 coaches. 47 of them are going to embarrass themselves. The Coach has the receipts ready. $COACH 📋",
+  "Koeman has Oranje's best generation in 20 years and still manages to make them look average. Truly gifted at being wrong. $COACH 🤡",
+  "Deschamps has Mbappé and uses him like a side quest. If I had that wallet I'd be rich. Instead he's running it to zero. $COACH 💀",
+  "Ancelotti's notebook has been empty since 2019. Four Champions Leagues won despite the tactics, not because of them. $COACH 📋",
+  "Scaloni won a World Cup and still coaches like he's scared of winning. Messi drags that squad to trophies alone. $COACH",
+  "Nagelsmann is 38, coaches Germany, and still hasn't figured out how to use a number 10. The Coach was doing this in his sleep. $COACH 🤡",
+  "48 coaches. 104 matches. Zero hiding spots. The Coach sees every wrong sub, every coward formation, every panic decision. $COACH 📋",
+  "Tuchel got sacked by Bayern, PSG AND Chelsea and somehow convinced England he's the answer. The Coach has never been sacked. Never applied either. Standards. $COACH",
+  "June 11. World Cup 2026 begins. The Coach will be watching every single match. No coach is safe. $COACH 💀",
+  "World Cup squads almost final. The Coach has already spotted 12 selection errors across 8 squads. Nobody asked. They'll regret it. $COACH",
 ];
 
 async function postHotTake() {
@@ -318,30 +320,45 @@ const postedNewsHeadlines = new Set();
 async function fetchAndPostWCNews() {
   console.log('📰 Checking WC news...');
   try {
-    // Use Claude with web_search to find latest WC 2026 news
-    const msg = await claudeWithRetry({
+    // Step 1: Search for news
+    const searchMsg = await claudeWithRetry({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1000,
+      max_tokens: 300,
       tools: [{ type: 'web_search_20250305', name: 'web_search' }],
-      system: COACH_PERSONA,
       messages: [{
         role: 'user',
-        content: `Search for the very latest FIFA World Cup 2026 news from today. Look for: squad announcements, player injuries, coach decisions, group stage news, team selections, or any major WC2026 story. 
-
-Then write ONE tweet reacting to the most interesting piece of news you find, in character as The Coach. Be specific about the actual news. Under 260 characters. End with $COACH.
-
-If there is no new news, respond with exactly: NO_NEWS`
+        content: 'Find ONE specific World Cup 2026 news story from today. Return ONLY: headline + 1 sentence summary. Nothing else.'
       }]
     });
 
-    // Extract text response
-    const textBlock = msg.content.find(b => b.type === 'text');
-    if (!textBlock) return;
+    const newsText = searchMsg.content.filter(b => b.type === 'text').map(b => b.text).join(' ').trim();
+    if (!newsText || newsText.length < 20) return;
 
-    const text = textBlock.text.trim();
-    if (text === 'NO_NEWS' || text.includes('NO_NEWS')) return;
+    // Step 2: Generate roast tweet about the news
+    const verdictMsg = await claudeWithRetry({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 120,
+      system: COACH_PERSONA,
+      messages: [{
+        role: 'user',
+        content: `News: "${newsText.substring(0, 200)}"
 
-    // Avoid duplicate posts
+Write ONLY a tweet reacting to this. No intro. No explanation. Start directly with your opinion. Under 260 chars. Must end with $COACH.`
+      }]
+    });
+
+    let text = verdictMsg.content[0]?.text?.trim();
+    if (!text) return;
+
+    // STRICT validation - must end with $COACH and be under 280 chars
+    if (!text.includes('$COACH')) return;
+    if (text.length > 280) text = text.substring(0, 277) + '...';
+
+    // Must not be an intro sentence
+    const badPhrases = ["I'll search", "I will search", "Let me", "Here's", "I found", "Based on"];
+    if (badPhrases.some(p => text.startsWith(p))) return;
+
+    // Avoid duplicates
     const key = text.substring(0, 50);
     if (postedNewsHeadlines.has(key)) return;
     postedNewsHeadlines.add(key);
