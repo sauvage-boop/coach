@@ -451,15 +451,63 @@ Write ONE tweet reacting to this as The Coach. Under 260 chars. End with $COACH.
 }
 
 // ── DM ROAST BOT ─────────────────────────────────────────────
+const COACH_CA = process.env.COACH_CA || ''; // Fill after pump.fun launch
+const BURN_ADDRESS = '1nc1nerator11111111111111111111111111111111'; // Solana burn address
+const ROAST_PRICE = parseInt(process.env.ROAST_PRICE || '1000'); // 1000 $COACH default
+
+async function verifyBurnTransaction(txHash, expectedAmount) {
+  try {
+    await new Promise(r => setTimeout(r, 4000));
+    const res = await axios.post(HELIUS_RPC, {
+      jsonrpc: '2.0', id: 1,
+      method: 'getTransaction',
+      params: [txHash, { encoding: 'jsonParsed', maxSupportedTransactionVersion: 0 }]
+    });
+    const tx = res.data?.result;
+    if (!tx || tx.meta?.err) return { valid: false, error: 'Transaction failed' };
+
+    // Check post token balances for burn address
+    const postBalances = tx.meta?.postTokenBalances || [];
+    const preBalances = tx.meta?.preTokenBalances || [];
+
+    for (const post of postBalances) {
+      if (post.owner === BURN_ADDRESS) {
+        const pre = preBalances.find(p => p.accountIndex === post.accountIndex);
+        const preAmt = parseFloat(pre?.uiTokenAmount?.uiAmount || 0);
+        const postAmt = parseFloat(post.uiTokenAmount?.uiAmount || 0);
+        const burned = postAmt - preAmt;
+        if (burned >= expectedAmount * 0.99) return { valid: true, burned };
+      }
+    }
+
+    // Also check via instruction parsing
+    const instructions = tx.transaction?.message?.instructions || [];
+    const innerInstructions = tx.meta?.innerInstructions?.flatMap(i => i.instructions) || [];
+    for (const ix of [...instructions, ...innerInstructions]) {
+      const info = ix.parsed?.info;
+      if (!info) continue;
+      if ((ix.parsed?.type === 'transfer' || ix.parsed?.type === 'transferChecked') &&
+          (info.destination === BURN_ADDRESS || info.account === BURN_ADDRESS)) {
+        const amount = parseFloat(info.amount || info.tokenAmount?.uiAmount || 0);
+        if (amount >= expectedAmount * 0.99) return { valid: true, burned: amount };
+      }
+    }
+
+    return { valid: false, error: 'No burn to correct address found' };
+  } catch(e) {
+    return { valid: false, error: e.message };
+  }
+}
+
 async function checkAndProcessDMs() {
   console.log('📬 Checking DMs...');
   try {
     const me = await twitter.v2.me();
     const myId = me.data.id;
 
-    // Load processed DMs from disk
     const data = loadData();
     if (!data.processedDMs) data.processedDMs = [];
+    if (!data.pendingRoasts) data.pendingRoasts = {};
     const processedSet = new Set(data.processedDMs);
 
     const dms = await twitter.v2.get('dm_events', {
@@ -474,56 +522,117 @@ async function checkAndProcessDMs() {
       if (dm.sender_id === myId) continue;
       if (processedSet.has(dm.id)) continue;
 
-      // Mark as processed immediately
       processedSet.add(dm.id);
       data.processedDMs = [...processedSet].slice(-1000);
       saveData(data);
 
       const text = dm.text?.trim() || '';
+      const convId = dm.dm_conversation_id;
+
+      // ── STEP 1: @ROAST request ──
       const roastMatch = text.match(/@ROAST\s+@?(\S+)/i);
-      if (!roastMatch) continue;
+      if (roastMatch) {
+        const targetHandle = roastMatch[1].replace('@', '');
+        console.log(`🎯 Roast request: @${targetHandle} from DM`);
 
-      const targetHandle = roastMatch[1].replace('@', '');
-      console.log(`🎯 Roast request: @${targetHandle} from DM`);
-
-      let targetContext = '';
-      try {
-        const targetUser = await twitter.v2.userByUsername(targetHandle, { 'user.fields': ['description', 'name'] });
-        if (targetUser.data) {
-          const tweets = await twitter.v2.userTimeline(targetUser.data.id, { max_results: 5, exclude: ['retweets', 'replies'] });
-          const recentTweets = tweets.data?.data?.map(t => t.text).join(' | ') || '';
-          targetContext = `Name: ${targetUser.data.name}\nHandle: @${targetHandle}\nRecent tweets: ${recentTweets}`;
+        // If no CA yet, roast for free (pre-launch)
+        if (!COACH_CA) {
+          await executeRoast(dm, targetHandle, convId);
+          continue;
         }
-      } catch(e) {}
 
-      const roastMsg = await claudeWithRetry({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 150,
-        system: COACH_PERSONA,
-        messages: [{ role: 'user', content: `Roast @${targetHandle} HARD as The Coach right now. Brutal, specific, degen. You already know who they are.\n\n${targetContext ? `Extra context: ${targetContext}` : ''}\n\nWrite ONE tweet roast. Under 260 chars. Must end with $COACH. NO questions. NO asking for more info. Just roast them directly.` }]
-      });
+        // Store pending roast and ask for payment
+        data.pendingRoasts[convId] = { targetHandle, requestedAt: Date.now() };
+        saveData(data);
 
-      let roastText = roastMsg.content[0]?.text?.trim();
-      if (!roastText || !roastText.includes('$COACH')) continue;
-      if (roastText.length > 280) roastText = roastText.substring(0, 277) + '...';
-
-      const posted = await postToTwitter(roastText);
-
-      if (posted.success) {
         try {
-          await twitter.v2.sendDmToConversation(dm.dm_conversation_id, { text: `Done. The Coach has spoken. Check the timeline. $COACH 📋` });
+          await twitter.v2.sendDmToConversation(convId, {
+            text: `The Coach sees your request. 👀\n\nTo roast @${targetHandle}, burn ${ROAST_PRICE} $COACH to the burn address:\n\n1nc1nerator11111111111111111111111111111111\n\nThen reply with: TX:[your transaction hash]\n\nTokens are permanently burned. No refunds. The Coach delivers. $COACH 📋`
+          });
+        } catch(e) {}
+        continue;
+      }
+
+      // ── STEP 2: TX hash confirmation ──
+      const txMatch = text.match(/TX:\s*([A-Za-z0-9]{40,})/i);
+      if (txMatch && data.pendingRoasts[convId]) {
+        const txHash = txMatch[1].trim();
+        const pending = data.pendingRoasts[convId];
+
+        // Check if request is not too old (24 hours)
+        if (Date.now() - pending.requestedAt > 86400000) {
+          delete data.pendingRoasts[convId];
+          saveData(data);
+          try { await twitter.v2.sendDmToConversation(convId, { text: `Request expired. Start over with @ROAST @username. $COACH` }); } catch(e) {}
+          continue;
+        }
+
+        console.log(`🔥 Verifying burn tx for @${pending.targetHandle}: ${txHash}`);
+
+        try {
+          await twitter.v2.sendDmToConversation(convId, { text: `Verifying your burn transaction... 🔍` });
         } catch(e) {}
 
-        const freshData = loadData();
-        freshData.posts.unshift({ id: Date.now(), tweetId: posted.id, text: roastText, match: null, competition: `Roast: @${targetHandle}`, timestamp: new Date().toISOString(), posted: true, source: 'roast_request' });
-        if (freshData.posts.length > 50) freshData.posts = freshData.posts.slice(0, 50);
-        freshData.stats.totalPosts++;
-        saveData(freshData);
-        console.log(`🔥 Roast posted for @${targetHandle}`);
+        const verification = await verifyBurnTransaction(txHash, ROAST_PRICE);
+
+        if (!verification.valid) {
+          try {
+            await twitter.v2.sendDmToConversation(convId, { text: `Transaction not verified: ${verification.error}\n\nMake sure you burned ${ROAST_PRICE} $COACH to:\n1nc1nerator11111111111111111111111111111111\n\nTry again with TX:[hash]. $COACH` });
+          } catch(e) {}
+          continue;
+        }
+
+        // Burn verified — execute roast
+        console.log(`✅ Burn verified: ${verification.burned} $COACH burned for roast of @${pending.targetHandle}`);
+        delete data.pendingRoasts[convId];
+        saveData(data);
+
+        await executeRoast(dm, pending.targetHandle, convId, verification.burned);
+        continue;
       }
     }
   } catch(e) {
     console.error('DM bot error:', e.message);
+  }
+}
+
+async function executeRoast(dm, targetHandle, convId, burnedAmount) {
+  let targetContext = '';
+  try {
+    const targetUser = await twitter.v2.userByUsername(targetHandle, { 'user.fields': ['description', 'name'] });
+    if (targetUser.data) {
+      const tweets = await twitter.v2.userTimeline(targetUser.data.id, { max_results: 5, exclude: ['retweets', 'replies'] });
+      const recentTweets = tweets.data?.data?.map(t => t.text).join(' | ') || '';
+      targetContext = `Name: ${targetUser.data.name}\nHandle: @${targetHandle}\nRecent tweets: ${recentTweets}`;
+    }
+  } catch(e) {}
+
+  const roastMsg = await claudeWithRetry({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 150,
+    system: COACH_PERSONA,
+    messages: [{ role: 'user', content: `Roast @${targetHandle} HARD as The Coach. Brutal, specific, degen. You know who they are.\n\n${targetContext ? `Context: ${targetContext}` : ''}\n\nONE tweet. Under 260 chars. Must end with $COACH. No intro. Direct roast only.` }]
+  });
+
+  let roastText = roastMsg.content[0]?.text?.trim();
+  if (!roastText || !roastText.includes('$COACH')) return;
+  if (roastText.length > 280) roastText = roastText.substring(0, 277) + '...';
+
+  const posted = await postToTwitter(roastText);
+
+  if (posted.success) {
+    const replyText = burnedAmount
+      ? `Done. ${burnedAmount.toLocaleString()} $COACH burned forever. The Coach has spoken. Check the timeline. 🔥`
+      : `Done. The Coach has spoken. Check the timeline. $COACH 📋`;
+
+    try { await twitter.v2.sendDmToConversation(convId, { text: replyText }); } catch(e) {}
+
+    const freshData = loadData();
+    freshData.posts.unshift({ id: Date.now(), tweetId: posted.id, text: roastText, match: null, competition: `Roast: @${targetHandle}${burnedAmount ? ` (${burnedAmount} burned)` : ''}`, timestamp: new Date().toISOString(), posted: true, source: 'roast_request' });
+    if (freshData.posts.length > 50) freshData.posts = freshData.posts.slice(0, 50);
+    freshData.stats.totalPosts++;
+    saveData(freshData);
+    console.log(`🔥 Roast posted for @${targetHandle}${burnedAmount ? ` — ${burnedAmount} $COACH burned` : ''}`);
   }
 }
 
