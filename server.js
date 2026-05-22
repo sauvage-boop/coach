@@ -162,7 +162,7 @@ KEY SUBS: ${subs || 'none'}`;
 
 // ── GENERATE & POST ──────────────────────────────────────────
 async function generateVerdict(matchData) {
-  const msg = await claude.messages.create({
+  const msg = await claudeWithRetry({
     model: 'claude-haiku-4-5-20251001',
     max_tokens: 200,
     system: COACH_PERSONA,
@@ -173,13 +173,37 @@ async function generateVerdict(matchData) {
   return text;
 }
 
+// ── CLAUDE WITH RETRY ────────────────────────────────────────
+async function claudeWithRetry(params, retries = 3) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await claude.messages.create(params);
+    } catch (e) {
+      const is529 = e.message?.includes('529') || e.message?.includes('overloaded');
+      if (is529 && i < retries - 1) {
+        console.log(`⏳ Anthropic overloaded, retry ${i + 1}/${retries} in 30s...`);
+        await new Promise(r => setTimeout(r, 30000));
+      } else {
+        throw e;
+      }
+    }
+  }
+}
+
 async function postToTwitter(text) {
   try {
     const tweet = await twitter.v2.tweet(text);
-    console.log('✅ Posted:', text);
+    console.log('✅ Posted:', text.substring(0, 60) + '...');
     return { success: true, id: tweet.data.id, text };
   } catch (e) {
-    console.error('❌ Twitter error:', e.message);
+    const code = e.code || e.message;
+    if (String(code).includes('403')) {
+      console.log('⏸️  X rate limited (403) — skipping post, will retry next cycle');
+    } else if (String(code).includes('429')) {
+      console.log('⏸️  X too many requests (429) — skipping post');
+    } else {
+      console.error('❌ Twitter error:', e.message);
+    }
     return { success: false, error: e.message, text };
   }
 }
@@ -295,7 +319,7 @@ async function fetchAndPostWCNews() {
   console.log('📰 Checking WC news...');
   try {
     // Use Claude with web_search to find latest WC 2026 news
-    const msg = await claude.messages.create({
+    const msg = await claudeWithRetry({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 1000,
       tools: [{ type: 'web_search_20250305', name: 'web_search' }],
@@ -351,7 +375,7 @@ async function generateWebsiteVerdict() {
   console.log('🌐 Generating website verdict...');
   try {
     // Step 1: Search for news
-    const searchMsg = await claude.messages.create({
+    const searchMsg = await claudeWithRetry({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 500,
       tools: [{ type: 'web_search_20250305', name: 'web_search' }],
@@ -370,7 +394,7 @@ async function generateWebsiteVerdict() {
     if (!newsText || newsText.length < 20) return;
 
     // Step 2: Generate verdict based on news
-    const verdictMsg = await claude.messages.create({
+    const verdictMsg = await claudeWithRetry({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 150,
       system: COACH_PERSONA,
