@@ -521,6 +521,7 @@ async function checkAndProcessDMs() {
       'event_types': 'MessageCreate'
     });
 
+    console.log(`📬 DM response: ${JSON.stringify(dms?.data?.length)} messages`);
     if (!dms?.data?.length) return;
 
     for (const dm of dms.data) {
