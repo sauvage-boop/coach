@@ -521,8 +521,12 @@ async function checkAndProcessDMs() {
       'event_types': 'MessageCreate'
     });
 
-    const dmList = dms?.data?.data || dms?.data || [];
-    console.log(`📬 DM response: ${dmList.length} messages`);
+    console.log(`📬 Raw DM response keys: ${Object.keys(dms || {}).join(', ')}`);
+    console.log(`📬 DM data type: ${typeof dms?.data}`);
+    
+    const dmList = Array.isArray(dms?.data) ? dms.data : 
+                   Array.isArray(dms?.data?.data) ? dms.data.data : [];
+    console.log(`📬 DM count: ${dmList.length}`);
     if (!dmList.length) return;
 
     for (const dm of dmList) {
