@@ -551,7 +551,7 @@ async function checkAndProcessDMs() {
         saveData(data);
 
         try {
-          await twitter.v2.sendDmToConversation(convId, {
+          await twitter.v2.sendDmInConversation(convId, {
             text: `The Coach sees your request. 👀\n\nTo roast @${targetHandle}, burn ${ROAST_PRICE} $COACH to the burn address:\n\n1nc1nerator11111111111111111111111111111111\n\nThen reply with: TX:[your transaction hash]\n\nTokens are permanently burned. No refunds. The Coach delivers. $COACH 📋`
           });
         } catch(e) {}
@@ -568,21 +568,21 @@ async function checkAndProcessDMs() {
         if (Date.now() - pending.requestedAt > 86400000) {
           delete data.pendingRoasts[convId];
           saveData(data);
-          try { await twitter.v2.sendDmToConversation(convId, { text: `Request expired. Start over with @ROAST @username. $COACH` }); } catch(e) {}
+          try { await twitter.v2.sendDmInConversation(convId, { text: `Request expired. Start over with @ROAST @username. $COACH` }); } catch(e) {}
           continue;
         }
 
         console.log(`🔥 Verifying burn tx for @${pending.targetHandle}: ${txHash}`);
 
         try {
-          await twitter.v2.sendDmToConversation(convId, { text: `Verifying your burn transaction... 🔍` });
+          await twitter.v2.sendDmInConversation(convId, { text: `Verifying your burn transaction... 🔍` });
         } catch(e) {}
 
         const verification = await verifyBurnTransaction(txHash, ROAST_PRICE);
 
         if (!verification.valid) {
           try {
-            await twitter.v2.sendDmToConversation(convId, { text: `Transaction not verified: ${verification.error}\n\nMake sure you burned ${ROAST_PRICE} $COACH to:\n1nc1nerator11111111111111111111111111111111\n\nTry again with TX:[hash]. $COACH` });
+            await twitter.v2.sendDmInConversation(convId, { text: `Transaction not verified: ${verification.error}\n\nMake sure you burned ${ROAST_PRICE} $COACH to:\n1nc1nerator11111111111111111111111111111111\n\nTry again with TX:[hash]. $COACH` });
           } catch(e) {}
           continue;
         }
@@ -639,7 +639,9 @@ async function executeRoast(dm, targetHandle, convId, burnedAmount) {
         ? `Done. ${burnedAmount.toLocaleString()} $COACH burned forever. The Coach has spoken. Check the timeline. 🔥`
         : `Done. The Coach has spoken. Check the timeline.\n\n⚠️ Coming soon: roasts will cost $COACH — permanently burned. Buy $COACH on pump.fun when it drops. $COACH 📋`;
 
-      try { await twitter.v2.sendDmToConversation(convId, { text: replyText }); } catch(e) {
+      try { 
+        await twitter.v2.sendDmInConversation(convId, { text: replyText }); 
+      } catch(e) {
         console.log(`⚠️ Could not send DM reply: ${e.message}`);
       }
 
