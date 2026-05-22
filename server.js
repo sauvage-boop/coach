@@ -886,6 +886,17 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'online', time: new Date().toISOString() });
 });
 
+// Clear processed DMs (admin)
+app.post('/api/admin/clear-dms', adminAuth, (req, res) => {
+  const data = loadData();
+  const count = data.processedDMs?.length || 0;
+  data.processedDMs = [];
+  data.pendingRoasts = {};
+  saveData(data);
+  console.log(`🧹 Cleared ${count} processed DMs`);
+  res.json({ success: true, cleared: count });
+});
+
 // ── START ────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
