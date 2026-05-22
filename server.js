@@ -540,13 +540,8 @@ async function checkAndProcessDMs() {
         const targetHandle = roastMatch[1].replace('@', '');
         console.log(`🎯 Roast request: @${targetHandle} from DM`);
 
-        // If no CA yet, roast for free but notify about upcoming payment
+        // If no CA yet, roast for free
         if (!COACH_CA) {
-          try {
-            await twitter.v2.sendDmToConversation(convId, {
-              text: `The Coach sees your request. 🎯\n\nRoasting @${targetHandle} now — this one's on the house.\n\n⚠️ Coming soon: roasts will cost $COACH tokens, permanently burned. Every roast = less supply.\n\nBuy $COACH on pump.fun when it drops. $COACH 📋`
-            });
-          } catch(e) {}
           await executeRoast(dm, targetHandle, convId);
           continue;
         }
@@ -642,7 +637,7 @@ async function executeRoast(dm, targetHandle, convId, burnedAmount) {
     if (posted.success) {
       const replyText = burnedAmount
         ? `Done. ${burnedAmount.toLocaleString()} $COACH burned forever. The Coach has spoken. Check the timeline. 🔥`
-        : `Done. The Coach has spoken. Check the timeline. $COACH 📋`;
+        : `Done. The Coach has spoken. Check the timeline.\n\n⚠️ Coming soon: roasts will cost $COACH — permanently burned. Buy $COACH on pump.fun when it drops. $COACH 📋`;
 
       try { await twitter.v2.sendDmToConversation(convId, { text: replyText }); } catch(e) {
         console.log(`⚠️ Could not send DM reply: ${e.message}`);
