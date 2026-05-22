@@ -460,91 +460,59 @@ async function checkAndProcessDMs() {
     const me = await twitter.v2.me();
     const myId = me.data.id;
 
-    // Get recent DM conversations
-    const dms = await twitter.v2.listDmEvents({
-      'dm_event.fields': ['text', 'sender_id', 'created_at', 'dm_conversation_id'],
-      'max_results': 20
+    // Get DM events using correct endpoint
+    const dms = await twitter.v2.get('dm_events', {
+      'dm_event.fields': 'text,sender_id,created_at,dm_conversation_id',
+      'max_results': 20,
+      'event_types': 'MessageCreate'
     });
 
-    if (!dms.data?.data?.length) return;
+    if (!dms?.data?.length) return;
 
-    for (const dm of dms.data.data) {
-      // Skip own messages and already processed
+    for (const dm of dms.data) {
       if (dm.sender_id === myId) continue;
       if (processedDMs.has(dm.id)) continue;
       processedDMs.add(dm.id);
 
       const text = dm.text?.trim() || '';
-
-      // Check for @ROAST command
       const roastMatch = text.match(/@ROAST\s+@?(\S+)/i);
       if (!roastMatch) continue;
 
       const targetHandle = roastMatch[1].replace('@', '');
       console.log(`🎯 Roast request: @${targetHandle} from DM`);
 
-      // Get target's recent tweets
-      let targetContext = '';
+      // Get target context
+      let targetContext = `Handle: @${targetHandle}`;
       try {
-        const targetUser = await twitter.v2.userByUsername(targetHandle, {
-          'user.fields': ['description', 'name']
-        });
-
+        const targetUser = await twitter.v2.userByUsername(targetHandle, { 'user.fields': ['description', 'name'] });
         if (targetUser.data) {
-          const tweets = await twitter.v2.userTimeline(targetUser.data.id, {
-            max_results: 5,
-            exclude: ['retweets', 'replies']
-          });
-
+          const tweets = await twitter.v2.userTimeline(targetUser.data.id, { max_results: 5, exclude: ['retweets', 'replies'] });
           const recentTweets = tweets.data?.data?.map(t => t.text).join(' | ') || '';
           targetContext = `Name: ${targetUser.data.name}\nHandle: @${targetHandle}\nRecent tweets: ${recentTweets}`;
         }
-      } catch(e) {
-        targetContext = `Handle: @${targetHandle}`;
-      }
+      } catch(e) {}
 
-      // Generate roast with Claude
+      // Generate roast
       const roastMsg = await claudeWithRetry({
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 150,
         system: COACH_PERSONA,
-        messages: [{
-          role: 'user',
-          content: `Roast this person HARD as The Coach. Be brutal, specific, degen. Use their recent tweets if relevant.
-
-${targetContext}
-
-Write ONE tweet roast. Under 260 chars. Must end with $COACH. No intro. Start directly with the roast.`
-        }]
+        messages: [{ role: 'user', content: `Roast this person HARD as The Coach. Brutal, specific, degen. Use their recent tweets.\n\n${targetContext}\n\nWrite ONE tweet roast. Under 260 chars. Must end with $COACH. No intro.` }]
       });
 
       let roastText = roastMsg.content[0]?.text?.trim();
       if (!roastText || !roastText.includes('$COACH')) continue;
       if (roastText.length > 280) roastText = roastText.substring(0, 277) + '...';
 
-      // Post roast publicly on timeline
       const posted = await postToTwitter(roastText);
 
-      // Reply to DM
       if (posted.success) {
         try {
-          await twitter.v2.sendDmToConversation(dm.dm_conversation_id, {
-            text: `Done. The Coach has spoken. Check the timeline. $COACH 📋`
-          });
+          await twitter.v2.sendDmToConversation(dm.dm_conversation_id, { text: `Done. The Coach has spoken. Check the timeline. $COACH 📋` });
         } catch(e) {}
 
-        // Save to posts
         const data = loadData();
-        data.posts.unshift({
-          id: Date.now(),
-          tweetId: posted.id,
-          text: roastText,
-          match: null,
-          competition: `Roast: @${targetHandle}`,
-          timestamp: new Date().toISOString(),
-          posted: true,
-          source: 'roast_request'
-        });
+        data.posts.unshift({ id: Date.now(), tweetId: posted.id, text: roastText, match: null, competition: `Roast: @${targetHandle}`, timestamp: new Date().toISOString(), posted: true, source: 'roast_request' });
         if (data.posts.length > 50) data.posts = data.posts.slice(0, 50);
         data.stats.totalPosts++;
         saveData(data);
