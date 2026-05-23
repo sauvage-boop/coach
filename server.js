@@ -31,7 +31,13 @@ const twitter = new TwitterApi({
 
 // ── TELEGRAM BOT ─────────────────────────────────────────────
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN || '8968875555:AAEA7QwHOB_Cfc0_ge_Gt-LqE3tJpGKhkoE';
-const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: false });
+const bot = new TelegramBot(TELEGRAM_TOKEN, { 
+  polling: {
+    interval: 2000,
+    autoStart: true,
+    params: { timeout: 10 }
+  }
+});
 
 // ── DATA STORE (JSON file — no DB needed) ───────────────────
 const DATA_FILE = path.join(__dirname, 'data.json');
@@ -1138,13 +1144,6 @@ app.listen(PORT, () => {
   console.log(`\n🏟️  THE COACH BACKEND — ONLINE`);
   console.log(`📡 API running on http://localhost:${PORT}`);
   console.log(`⚽ Bot checking matches every 15 minutes\n`);
-  
-  // Set Telegram webhook
-  const webhookUrl = `https://www.thecoachonchain.com/telegram-webhook`;
-  bot.setWebHook(webhookUrl).then(() => {
-    console.log(`📱 Telegram webhook set: ${webhookUrl}`);
-  }).catch(e => console.error('Telegram webhook error:', e.message));
-
   runMatchBot();
   generateWebsiteVerdict();
 });
