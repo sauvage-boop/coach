@@ -764,7 +764,7 @@ bot.onText(/\/verdict/, async (msg) => {
 // /start — welcome message
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
-  bot.sendMessage(chatId, `🏟️ *THE COACH is here.*\n\nNever coached. Never been wrong.\n\n📋 Commands:\n/roast @username — destroy someone publicly on X\n/ask [question] — press conference with The Coach\n/verdict — latest verdict\n\nRoast requests cost $COACH after launch. For now — on the house. $COACH`, { parse_mode: 'Markdown' });
+  bot.sendMessage(chatId, `🏟️ *THE COACH is here.*\n\nNever coached. Never been wrong.\n\n📋 *Commands:*\n/roast @username — destroy someone on X\n/ask [question] — press conference\n/predict — WC 2026 predictions\n/lineup [country] — ideal lineup\n/rate @coach — rate a coach /10\n/hottake — controversial hot take\n/history [coach] — compare to historical flop\n/verdict — latest verdict\n/treasury — treasury wallet info\n/burn — burn stats\n/price — $COACH price\n/help — all commands\n\nRoast requests cost $COACH after launch. For now — on the house. $COACH 📋`, { parse_mode: 'Markdown' });
 });
 
 bot.on('polling_error', (err) => console.error('Telegram polling error:', err.message));
