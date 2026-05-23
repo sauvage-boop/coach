@@ -330,9 +330,17 @@ async function postHotTake() {
 // ── WK NEWS BOT ─────────────────────────────────────────────
 const postedNewsHeadlines = new Set();
 
+// Track recent topics to avoid repetition
+const recentTopics = [];
+
 async function fetchAndPostWCNews() {
   console.log('📰 Checking WC news...');
   try {
+    // Build exclusion list from recent topics
+    const excludeText = recentTopics.length > 0 
+      ? `Do NOT write about these topics again: ${recentTopics.slice(-5).join(', ')}.` 
+      : '';
+
     // Step 1: Search for WC 2026 news only
     const searchMsg = await claudeWithRetry({
       model: 'claude-haiku-4-5-20251001',
@@ -340,7 +348,7 @@ async function fetchAndPostWCNews() {
       tools: [{ type: 'web_search_20250305', name: 'web_search' }],
       messages: [{
         role: 'user',
-        content: 'Search for FIFA World Cup 2026 news only. Must be about: WC2026 squad announcements, WC2026 player selections, WC2026 coach decisions, WC2026 group stage, WC2026 injuries. NO club football. NO other tournaments. ONE specific WC2026 story. Return only headline + 1 sentence. Nothing else.'
+        content: `Search for FIFA World Cup 2026 news. Find a DIFFERENT story each time — squad selections, player calls, coach tactics, group draws, injuries, controversies. Must be specifically about WC 2026 national teams. NO club football. NO local leagues. NO non-WC sports. ${excludeText} Return ONE story: headline + 1 sentence only.`
       }]
     });
 
@@ -348,9 +356,15 @@ async function fetchAndPostWCNews() {
     if (!newsText || newsText.length < 20) return;
 
     // Only post if it's actually WC2026 content
-    const wcKeywords = ['world cup', 'wc2026', 'wc 2026', 'squad', 'fifa', 'group', 'qualifier', 'selection', '2026'];
+    const wcKeywords = ['world cup', 'wc 2026', 'squad', 'fifa', 'national team', 'selection', '2026', 'coach', 'manager'];
     const isWC = wcKeywords.some(k => newsText.toLowerCase().includes(k));
     if (!isWC) { console.log('📰 Skipping non-WC news'); return; }
+
+    // Extract topic to track
+    const topicWords = newsText.split(' ').slice(0, 4).join(' ');
+    if (recentTopics.includes(topicWords)) { console.log('📰 Skipping duplicate topic'); return; }
+    recentTopics.push(topicWords);
+    if (recentTopics.length > 10) recentTopics.shift();
 
     // Step 2: Generate roast tweet about the news
     const verdictMsg = await claudeWithRetry({
