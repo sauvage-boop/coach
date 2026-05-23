@@ -541,9 +541,8 @@ async function checkAndProcessDMs() {
     if (!dmList.length) return;
 
     for (const dm of dmList) {
-      console.log(`📨 DM from ${dm.sender_id}: "${dm.text?.substring(0,50)}"`);
-      if (dm.sender_id === myId) { console.log('⏭️ Skipping own message'); continue; }
-      if (processedSet.has(dm.id)) { console.log(`⏭️ Already processed: ${dm.id}`); continue; }
+      if (dm.sender_id === myId) continue;
+      if (processedSet.has(dm.id)) continue;
 
       processedSet.add(dm.id);
       data.processedDMs = [...processedSet].slice(-1000);
@@ -551,6 +550,9 @@ async function checkAndProcessDMs() {
 
       const text = dm.text?.trim() || '';
       const convId = dm.dm_conversation_id;
+
+      // Skip bot's own reply messages and empty
+      if (!text || text.startsWith('Done.') || text.startsWith('The Coach sees') || text.startsWith('Verifying') || text.startsWith('Request expired')) continue;
 
       // ── STEP 1: @ROAST request ──
       const roastMatch = text.match(/@ROAST\s+@?(\S+)/i);
@@ -639,7 +641,7 @@ async function executeRoast(dm, targetHandle, convId, burnedAmount) {
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 150,
       system: COACH_PERSONA,
-      messages: [{ role: 'user', content: `Roast @${targetHandle} HARD as The Coach. Brutal, specific, degen. You know who they are.\n\n${targetContext ? `Context: ${targetContext}` : ''}\n\nONE tweet. Under 260 chars. Must end with $COACH. No intro. Direct roast only.` }]
+      messages: [{ role: 'user', content: `Roast @${targetHandle} HARD as The Coach. Brutal, specific, degen. You know who they are.\n\n${targetContext ? `Context: ${targetContext}` : ''}\n\nONE tweet. Under 260 chars. Must start with @${targetHandle} or include @${targetHandle} early. Must end with $COACH. No intro. Direct roast only.` }]
     });
 
     let roastText = roastMsg.content[0]?.text?.trim();
@@ -699,7 +701,7 @@ bot.onText(/\/roast\s+@?(\S+)/i, async (msg, match) => {
     model: 'claude-haiku-4-5-20251001',
     max_tokens: 150,
     system: COACH_PERSONA,
-    messages: [{ role: 'user', content: `Roast @${targetHandle} HARD as The Coach. Brutal, specific, degen.\n\n${targetContext ? `Context: ${targetContext}` : ''}\n\nONE tweet. Under 260 chars. Must end with $COACH. No intro.` }]
+    messages: [{ role: 'user', content: `Roast @${targetHandle} HARD as The Coach. Brutal, specific, degen.\n\n${targetContext ? `Context: ${targetContext}` : ''}\n\nONE tweet. Under 260 chars. Must include @${targetHandle} early so they get notified. Must end with $COACH. No intro.` }]
   });
 
   let roastText = roastMsg.content[0]?.text?.trim();
