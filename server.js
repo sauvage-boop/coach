@@ -49,12 +49,20 @@ function loadData() {
       upcomingMatches: [],
       burnEvents: [],
       postedFixtureIds: [],
+      postedNewsKeys: [],       // PERSISTENT: track posted news
+      postedHotTakeIndexes: [], // PERSISTENT: track posted hot takes
+      recentNewsTopics: [],     // PERSISTENT: last 10 news topics
       stats: { totalPosts: 0, matchesCovered: 0, totalBurns: 0 }
     };
     fs.writeFileSync(DATA_FILE, JSON.stringify(initial, null, 2));
     return initial;
   }
-  return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+  const data = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+  // Migrate old data that doesn't have these fields
+  if (!data.postedNewsKeys) data.postedNewsKeys = [];
+  if (!data.postedHotTakeIndexes) data.postedHotTakeIndexes = [];
+  if (!data.recentNewsTopics) data.recentNewsTopics = [];
+  return data;
 }
 
 function saveData(data) {
@@ -108,7 +116,6 @@ async function getFinishedMatches() {
 
 async function getUpcomingMatches() {
   const today = new Date().toISOString().split('T')[0];
-  const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
   try {
     const res = await axios.get('https://v3.football.api-sports.io/fixtures', {
       headers: { 'x-apisports-key': process.env.FOOTBALL_API_KEY },
@@ -205,7 +212,6 @@ async function postToTwitter(text, competition = '') {
   try {
     const tweet = await twitter.v2.tweet(text);
     console.log('✅ Posted:', text.substring(0, 60) + '...');
-    // Auto-post to Telegram
     if (competition) postVerdictToTelegram(text, competition);
     return { success: true, id: tweet.data.id, text };
   } catch (e) {
@@ -241,15 +247,14 @@ async function runMatchBot() {
   let postsThisRun = 0;
 
   for (const fixture of matches) {
-    if (postsThisRun >= 3) break; // Max 3 posts per check
+    if (postsThisRun >= 3) break;
 
     const id = String(fixture.fixture.id);
     if (data.postedFixtureIds.includes(id)) continue;
 
-    // Only major competitions
     const compName = fixture.league?.name || '';
     if (!isMajorCompetition(compName)) {
-      data.postedFixtureIds.push(id); // Mark as seen but don't post
+      data.postedFixtureIds.push(id);
       continue;
     }
 
@@ -279,10 +284,6 @@ async function runMatchBot() {
     await new Promise(r => setTimeout(r, 5000));
   }
 
-  // Save all seen fixture IDs even if not posted
-  saveData(data);
-
-  // Update upcoming matches
   const upcoming = await getUpcomingMatches();
   data.upcomingMatches = upcoming.map(f => ({
     home: f.teams.home.name,
@@ -294,9 +295,9 @@ async function runMatchBot() {
   saveData(data);
 }
 
-// ── HOT TAKES ────────────────────────────────────────────────
+// ── HOT TAKES — PERSISTENT ROTATION ─────────────────────────
 const hotTakes = [
-  "20 days until the World Cup. 48 coaches. 47 of them are going to embarrass themselves. The Coach has the receipts ready. $COACH 📋",
+  "19 days until the World Cup. 48 coaches. 47 of them are going to embarrass themselves. The Coach has the receipts ready. $COACH 📋",
   "Koeman has Oranje's best generation in 20 years and still manages to make them look average. Truly gifted at being wrong. $COACH 🤡",
   "Deschamps has Mbappé and uses him like a side quest. If I had that wallet I'd be rich. Instead he's running it to zero. $COACH 💀",
   "Ancelotti's notebook has been empty since 2019. Four Champions Leagues won despite the tactics, not because of them. $COACH 📋",
@@ -310,7 +311,26 @@ const hotTakes = [
 
 async function postHotTake() {
   const data = loadData();
-  const text = hotTakes[Math.floor(Math.random() * hotTakes.length)];
+
+  // Reset if all have been posted
+  if (data.postedHotTakeIndexes.length >= hotTakes.length) {
+    console.log('🔄 All hot takes posted — resetting rotation');
+    data.postedHotTakeIndexes = [];
+  }
+
+  // Find indexes not yet posted
+  const available = hotTakes
+    .map((_, i) => i)
+    .filter(i => !data.postedHotTakeIndexes.includes(i));
+
+  if (!available.length) return;
+
+  // Pick random from remaining
+  const idx = available[Math.floor(Math.random() * available.length)];
+  const text = hotTakes[idx];
+
+  data.postedHotTakeIndexes.push(idx);
+
   const result = await postToTwitter(text);
   const post = {
     id: Date.now(),
@@ -325,23 +345,21 @@ async function postHotTake() {
   if (data.posts.length > 50) data.posts = data.posts.slice(0, 50);
   data.stats.totalPosts++;
   saveData(data);
+  console.log(`📋 Hot take posted [${idx}/${hotTakes.length - 1}]: ${text.substring(0, 60)}...`);
 }
 
-// ── WK NEWS BOT ─────────────────────────────────────────────
-const postedNewsHeadlines = new Set();
-
-// Track recent topics to avoid repetition
-const recentTopics = [];
-
+// ── WK NEWS BOT — PERSISTENT DEDUPLICATION ──────────────────
 async function fetchAndPostWCNews() {
   console.log('📰 Checking WC news...');
   try {
-    // Build exclusion list from recent topics
-    const excludeText = recentTopics.length > 0 
-      ? `Do NOT write about these topics again: ${recentTopics.slice(-5).join(', ')}.` 
+    const data = loadData();
+
+    // Build exclusion prompt from persistent recent topics
+    const excludeText = data.recentNewsTopics.length > 0
+      ? `Do NOT write about these topics — already posted recently: ${data.recentNewsTopics.slice(-6).join(' | ')}.`
       : '';
 
-    // Step 1: Search for WC 2026 news only
+    // Step 1: Search for WC 2026 news
     const searchMsg = await claudeWithRetry({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 300,
@@ -355,51 +373,60 @@ async function fetchAndPostWCNews() {
     const newsText = searchMsg.content.filter(b => b.type === 'text').map(b => b.text).join(' ').trim();
     if (!newsText || newsText.length < 20) return;
 
-    // Only post if it's actually WC2026 content
+    // WC keyword filter
     const wcKeywords = ['world cup', 'wc 2026', 'squad', 'fifa', 'national team', 'selection', '2026', 'coach', 'manager'];
     const isWC = wcKeywords.some(k => newsText.toLowerCase().includes(k));
     if (!isWC) { console.log('📰 Skipping non-WC news'); return; }
 
-    // Extract topic to track
-    const topicWords = newsText.split(' ').slice(0, 4).join(' ');
-    if (recentTopics.includes(topicWords)) { console.log('📰 Skipping duplicate topic'); return; }
-    recentTopics.push(topicWords);
-    if (recentTopics.length > 10) recentTopics.shift();
+    // Persistent duplicate check — use first 60 chars as key
+    const newsKey = newsText.substring(0, 60).toLowerCase().replace(/\s+/g, ' ').trim();
+    if (data.postedNewsKeys.includes(newsKey)) {
+      console.log('📰 Skipping duplicate news (persistent)');
+      return;
+    }
 
-    // Step 2: Generate roast tweet about the news
+    // Step 2: Generate roast tweet
     const verdictMsg = await claudeWithRetry({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 120,
       system: COACH_PERSONA,
       messages: [{
         role: 'user',
-        content: `News: "${newsText.substring(0, 200)}"
-
-Write ONLY a tweet reacting to this. No intro. No explanation. Start directly with your opinion. Under 260 chars. Must end with $COACH.`
+        content: `News: "${newsText.substring(0, 200)}"\n\nWrite ONLY a tweet reacting to this. No intro. No explanation. Start directly with your opinion. Under 260 chars. Must end with $COACH.`
       }]
     });
 
     let text = verdictMsg.content[0]?.text?.trim();
     if (!text) return;
-
-    // STRICT validation - must end with $COACH and be under 280 chars
     if (!text.includes('$COACH')) return;
     if (text.length > 280) text = text.substring(0, 277) + '...';
 
-    // Must not be an intro sentence
     const badPhrases = ["I'll search", "I will search", "Let me", "Here's", "I found", "Based on"];
     if (badPhrases.some(p => text.startsWith(p))) return;
 
-    // Avoid duplicates
-    const key = text.substring(0, 50);
-    if (postedNewsHeadlines.has(key)) return;
-    postedNewsHeadlines.add(key);
+    // Check tweet text itself for duplicates
+    const tweetKey = text.substring(0, 50);
+    if (data.postedNewsKeys.includes(tweetKey)) {
+      console.log('📰 Skipping duplicate tweet');
+      return;
+    }
+
+    // Save both keys + topic persistently
+    data.postedNewsKeys.push(newsKey, tweetKey);
+    if (data.postedNewsKeys.length > 200) data.postedNewsKeys = data.postedNewsKeys.slice(-200);
+
+    // Save topic for future exclusion
+    const topic = newsText.split(' ').slice(0, 6).join(' ');
+    data.recentNewsTopics.push(topic);
+    if (data.recentNewsTopics.length > 15) data.recentNewsTopics.shift();
+
+    saveData(data);
 
     // Post to X
     const result = await postToTwitter(text);
     if (result.success) {
-      const data = loadData();
-      data.posts.unshift({
+      const freshData = loadData();
+      freshData.posts.unshift({
         id: Date.now(),
         tweetId: result.id || null,
         text,
@@ -408,9 +435,9 @@ Write ONLY a tweet reacting to this. No intro. No explanation. Start directly wi
         timestamp: new Date().toISOString(),
         posted: true
       });
-      if (data.posts.length > 50) data.posts = data.posts.slice(0, 50);
-      data.stats.totalPosts++;
-      saveData(data);
+      if (freshData.posts.length > 50) freshData.posts = freshData.posts.slice(0, 50);
+      freshData.stats.totalPosts++;
+      saveData(freshData);
       console.log('📰 News post:', text);
     }
   } catch (e) {
@@ -418,12 +445,10 @@ Write ONLY a tweet reacting to this. No intro. No explanation. Start directly wi
   }
 }
 
-
 // ── WEBSITE VERDICT GENERATOR ────────────────────────────────
 async function generateWebsiteVerdict() {
   console.log('🌐 Generating website verdict...');
   try {
-    // Step 1: Search for news
     const searchMsg = await claudeWithRetry({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 500,
@@ -442,23 +467,19 @@ async function generateWebsiteVerdict() {
 
     if (!newsText || newsText.length < 20) return;
 
-    // Step 2: Generate verdict based on news
     const verdictMsg = await claudeWithRetry({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 150,
       system: COACH_PERSONA,
       messages: [{
         role: 'user',
-        content: `Based on this news: "${newsText}"
-
-Write ONE tweet reacting to this as The Coach. Under 260 chars. End with $COACH. NO intro, NO explanation. Just the tweet text directly.`
+        content: `Based on this news: "${newsText}"\n\nWrite ONE tweet reacting to this as The Coach. Under 260 chars. End with $COACH. NO intro, NO explanation. Just the tweet text directly.`
       }]
     });
 
     const verdict = verdictMsg.content[0]?.text?.trim();
     if (!verdict || !verdict.includes('$COACH') || verdict.length > 280) return;
 
-    // Determine topic
     const competition = newsText.toLowerCase().includes('group') ? 'WC 2026 Group Stage' :
                        newsText.toLowerCase().includes('squad') ? 'WC 2026 Squad News' :
                        newsText.toLowerCase().includes('injury') ? 'WC 2026 Injury News' : 'WC 2026 News';
@@ -483,9 +504,9 @@ Write ONE tweet reacting to this as The Coach. Under 260 chars. End with $COACH.
 }
 
 // ── DM ROAST BOT ─────────────────────────────────────────────
-const COACH_CA = process.env.COACH_CA || ''; // Fill after pump.fun launch
-const BURN_ADDRESS = '1nc1nerator11111111111111111111111111111111'; // Solana burn address
-const ROAST_PRICE = parseInt(process.env.ROAST_PRICE || '1000'); // 1000 $COACH default
+const COACH_CA = process.env.COACH_CA || '';
+const BURN_ADDRESS = '1nc1nerator11111111111111111111111111111111';
+const ROAST_PRICE = parseInt(process.env.ROAST_PRICE || '1000');
 
 async function verifyBurnTransaction(txHash, expectedAmount) {
   try {
@@ -498,7 +519,6 @@ async function verifyBurnTransaction(txHash, expectedAmount) {
     const tx = res.data?.result;
     if (!tx || tx.meta?.err) return { valid: false, error: 'Transaction failed' };
 
-    // Check post token balances for burn address
     const postBalances = tx.meta?.postTokenBalances || [];
     const preBalances = tx.meta?.preTokenBalances || [];
 
@@ -512,7 +532,6 @@ async function verifyBurnTransaction(txHash, expectedAmount) {
       }
     }
 
-    // Also check via instruction parsing
     const instructions = tx.transaction?.message?.instructions || [];
     const innerInstructions = tx.meta?.innerInstructions?.flatMap(i => i.instructions) || [];
     for (const ix of [...instructions, ...innerInstructions]) {
@@ -542,7 +561,6 @@ async function checkAndProcessDMs() {
     if (!data.pendingRoasts) data.pendingRoasts = {};
     const processedSet = new Set(data.processedDMs);
 
-    // Get DM events
     let dmList = [];
     try {
       const response = await twitter.v2.get('dm_events', {
@@ -571,22 +589,18 @@ async function checkAndProcessDMs() {
       const text = dm.text?.trim() || '';
       const convId = dm.dm_conversation_id;
 
-      // Skip bot's own reply messages and empty
       if (!text || text.startsWith('Done.') || text.startsWith('The Coach sees') || text.startsWith('Verifying') || text.startsWith('Request expired')) continue;
 
-      // ── STEP 1: @ROAST request ──
       const roastMatch = text.match(/@ROAST\s+@?(\S+)/i);
       if (roastMatch) {
         const targetHandle = roastMatch[1].replace('@', '');
         console.log(`🎯 Roast request: @${targetHandle} from DM`);
 
-        // If no CA yet, roast for free
         if (!COACH_CA) {
           await executeRoast(dm, targetHandle, convId);
           continue;
         }
 
-        // Store pending roast and ask for payment
         data.pendingRoasts[convId] = { targetHandle, requestedAt: Date.now() };
         saveData(data);
 
@@ -598,21 +612,17 @@ async function checkAndProcessDMs() {
         continue;
       }
 
-      // ── STEP 2: TX hash confirmation ──
       const txMatch = text.match(/TX:\s*([A-Za-z0-9]{40,})/i);
       if (txMatch && data.pendingRoasts[convId]) {
         const txHash = txMatch[1].trim();
         const pending = data.pendingRoasts[convId];
 
-        // Check if request is not too old (24 hours)
         if (Date.now() - pending.requestedAt > 86400000) {
           delete data.pendingRoasts[convId];
           saveData(data);
           try { await twitter.v2.sendDmInConversation(convId, { text: `Request expired. Start over with @ROAST @username. $COACH` }); } catch(e) {}
           continue;
         }
-
-        console.log(`🔥 Verifying burn tx for @${pending.targetHandle}: ${txHash}`);
 
         try {
           await twitter.v2.sendDmInConversation(convId, { text: `Verifying your burn transaction... 🔍` });
@@ -627,11 +637,8 @@ async function checkAndProcessDMs() {
           continue;
         }
 
-        // Burn verified — execute roast
-        console.log(`✅ Burn verified: ${verification.burned} $COACH burned for roast of @${pending.targetHandle}`);
         delete data.pendingRoasts[convId];
         saveData(data);
-
         await executeRoast(dm, pending.targetHandle, convId, verification.burned);
         continue;
       }
@@ -650,26 +657,19 @@ async function executeRoast(dm, targetHandle, convId, burnedAmount) {
       const tweets = await twitter.v2.userTimeline(targetUser.data.id, { max_results: 5, exclude: ['retweets', 'replies'] });
       const recentTweets = tweets.data?.data?.map(t => t.text).join(' | ') || '';
       targetContext = `Name: ${targetUser.data.name}\nHandle: @${targetHandle}\nRecent tweets: ${recentTweets}`;
-      console.log(`📋 Got context for @${targetHandle}`);
     }
-  } catch(e) {
-    console.log(`⚠️ Could not get context for @${targetHandle}: ${e.message}`);
-  }
+  } catch(e) {}
 
   try {
     const roastMsg = await claudeWithRetry({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 150,
       system: COACH_PERSONA,
-      messages: [{ role: 'user', content: `Roast @${targetHandle} HARD as The Coach. Brutal, specific, degen. You know who they are.\n\n${targetContext ? `Context: ${targetContext}` : ''}\n\nONE tweet. Under 260 chars. Must start with @${targetHandle} or include @${targetHandle} early. Must end with $COACH. No intro. Direct roast only.` }]
+      messages: [{ role: 'user', content: `Roast @${targetHandle} HARD as The Coach. Brutal, specific, degen.\n\n${targetContext ? `Context: ${targetContext}` : ''}\n\nONE tweet. Under 260 chars. Must include @${targetHandle} early. Must end with $COACH. No intro.` }]
     });
 
     let roastText = roastMsg.content[0]?.text?.trim();
-    console.log(`📝 Generated roast: ${roastText?.substring(0, 80)}...`);
-    if (!roastText || !roastText.includes('$COACH')) {
-      console.log('❌ Roast validation failed - missing $COACH');
-      return;
-    }
+    if (!roastText || !roastText.includes('$COACH')) return;
     if (roastText.length > 280) roastText = roastText.substring(0, 277) + '...';
 
     const posted = await postToTwitter(roastText);
@@ -679,32 +679,23 @@ async function executeRoast(dm, targetHandle, convId, burnedAmount) {
         ? `Done. ${burnedAmount.toLocaleString()} $COACH burned forever. The Coach has spoken. Check the timeline. 🔥`
         : `Done. The Coach has spoken. Check the timeline.\n\n⚠️ Coming soon: roasts will cost $COACH — permanently burned. Buy $COACH on pump.fun when it drops. $COACH 📋`;
 
-      try { 
-        await twitter.v2.sendDmInConversation(convId, { text: replyText }); 
-      } catch(e) {
-        console.log(`⚠️ Could not send DM reply: ${e.message}`);
-      }
+      try { await twitter.v2.sendDmInConversation(convId, { text: replyText }); } catch(e) {}
 
       const freshData = loadData();
       freshData.posts.unshift({ id: Date.now(), tweetId: posted.id, text: roastText, match: null, competition: `Roast: @${targetHandle}`, timestamp: new Date().toISOString(), posted: true, source: 'roast_request' });
       if (freshData.posts.length > 50) freshData.posts = freshData.posts.slice(0, 50);
       freshData.stats.totalPosts++;
       saveData(freshData);
-      console.log(`🔥 Roast posted for @${targetHandle}`);
     }
   } catch(e) {
-    console.error(`❌ executeRoast error for @${targetHandle}:`, e.message);
+    console.error(`❌ executeRoast error:`, e.message);
   }
 }
 
 // ── TELEGRAM BOT COMMANDS ────────────────────────────────────
-
-// /roast @username — roast someone and post on X
 bot.onText(/\/roast\s+@?(\S+)/i, async (msg, match) => {
   const chatId = msg.chat.id;
   const targetHandle = match[1].replace('@', '');
-  const requesterName = msg.from.first_name || 'Someone';
-
   bot.sendMessage(chatId, `🎯 The Coach is loading up on @${targetHandle}... $COACH`);
 
   let targetContext = '';
@@ -721,7 +712,7 @@ bot.onText(/\/roast\s+@?(\S+)/i, async (msg, match) => {
     model: 'claude-haiku-4-5-20251001',
     max_tokens: 150,
     system: COACH_PERSONA,
-    messages: [{ role: 'user', content: `Roast @${targetHandle} HARD as The Coach. Brutal, specific, degen.\n\n${targetContext ? `Context: ${targetContext}` : ''}\n\nONE tweet. Under 260 chars. Must include @${targetHandle} early so they get notified. Must end with $COACH. No intro.` }]
+    messages: [{ role: 'user', content: `Roast @${targetHandle} HARD as The Coach.\n\n${targetContext ? `Context: ${targetContext}` : ''}\n\nONE tweet. Under 260 chars. Must include @${targetHandle} early. Must end with $COACH. No intro.` }]
   });
 
   let roastText = roastMsg.content[0]?.text?.trim();
@@ -731,45 +722,32 @@ bot.onText(/\/roast\s+@?(\S+)/i, async (msg, match) => {
   }
   if (roastText.length > 280) roastText = roastText.substring(0, 277) + '...';
 
-  // Post on X
   const posted = await postToTwitter(roastText);
   if (posted.success) {
     bot.sendMessage(chatId, `🔥 Posted on X:\n\n"${roastText}"\n\nhttps://x.com/thecoachonchain`);
-
     const data = loadData();
     data.posts.unshift({ id: Date.now(), tweetId: posted.id, text: roastText, match: null, competition: `Roast: @${targetHandle}`, timestamp: new Date().toISOString(), posted: true, source: 'telegram_roast' });
     if (data.posts.length > 50) data.posts = data.posts.slice(0, 50);
     data.stats.totalPosts++;
     saveData(data);
   } else {
-    bot.sendMessage(chatId, `⏸️ X is rate limited. Roast saved, will post soon:\n\n"${roastText}"`);
+    bot.sendMessage(chatId, `⏸️ X is rate limited. Roast saved:\n\n"${roastText}"`);
   }
 });
 
-// /ask [question] — press conference mode
 bot.onText(/\/ask\s+(.+)/i, async (msg, match) => {
   const chatId = msg.chat.id;
   const question = match[1];
   const askerName = msg.from.first_name || 'Someone';
-
   try {
     const answerMsg = await claudeWithRetry({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 300,
-      system: COACH_PERSONA,
+      model: 'claude-haiku-4-5-20251001', max_tokens: 300, system: COACH_PERSONA,
       messages: [{ role: 'user', content: `You are at a press conference. ${askerName} asks: "${question}"\n\nAnswer as The Coach — arrogant, confident, entertaining. 2-4 sentences. End with $COACH.` }]
     });
-
-    const answer = answerMsg.content[0]?.text?.trim();
-    if (answer) {
-      bot.sendMessage(chatId, `📋 *The Coach responds:*\n\n${answer}`, { parse_mode: 'Markdown' });
-    }
-  } catch(e) {
-    bot.sendMessage(chatId, `❌ The Coach is busy. Try again.`);
-  }
+    bot.sendMessage(chatId, `📋 *The Coach responds:*\n\n${answerMsg.content[0].text.trim()}`, { parse_mode: 'Markdown' });
+  } catch(e) { bot.sendMessage(chatId, `❌ The Coach is busy. Try again.`); }
 });
 
-// /verdict — latest verdict from the website feed
 bot.onText(/\/verdict/, async (msg) => {
   const chatId = msg.chat.id;
   const data = loadData();
@@ -781,15 +759,13 @@ bot.onText(/\/verdict/, async (msg) => {
   }
 });
 
-// /start — welcome message
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
-  bot.sendMessage(chatId, `🏟️ *THE COACH is here.*\n\nNever coached. Never been wrong.\n\n📋 *Commands:*\n/roast @username — destroy someone on X\n/ask [question] — press conference\n/predict — WC 2026 predictions\n/lineup [country] — ideal lineup\n/rate @coach — rate a coach /10\n/hottake — controversial hot take\n/history [coach] — compare to historical flop\n/verdict — latest verdict\n/treasury — treasury wallet info\n/burn — burn stats\n/price — $COACH price\n/help — all commands\n\nRoast requests cost $COACH after launch. For now — on the house. $COACH 📋`, { parse_mode: 'Markdown' });
+  bot.sendMessage(chatId, `🏟️ *THE COACH is here.*\n\nNever coached. Never been wrong.\n\n📋 *Commands:*\n/roast @username — destroy someone on X\n/ask [question] — press conference\n/predict — WC 2026 predictions\n/lineup [country] — ideal lineup\n/rate @coach — rate a coach /10\n/hottake — controversial hot take\n/history [coach] — compare to historical flop\n/verdict — latest verdict\n/treasury — treasury wallet info\n/burn — burn stats\n/price — $COACH price\n/help — all commands\n\n$COACH 📋`, { parse_mode: 'Markdown' });
 });
 
 bot.on('polling_error', (err) => console.error('Telegram polling error:', err.message));
 
-// /predict — WK predictions
 bot.onText(/\/predict/, async (msg) => {
   const chatId = msg.chat.id;
   bot.sendMessage(chatId, `📋 The Coach is calculating...`);
@@ -802,7 +778,6 @@ bot.onText(/\/predict/, async (msg) => {
   } catch(e) { bot.sendMessage(chatId, `❌ Try again.`); }
 });
 
-// /lineup [country] — ideal lineup
 bot.onText(/\/lineup\s+(.+)/i, async (msg, match) => {
   const chatId = msg.chat.id;
   const country = match[1];
@@ -816,7 +791,6 @@ bot.onText(/\/lineup\s+(.+)/i, async (msg, match) => {
   } catch(e) { bot.sendMessage(chatId, `❌ Try again.`); }
 });
 
-// /rate @coach — rate a coach
 bot.onText(/\/rate\s+@?(\S+)/i, async (msg, match) => {
   const chatId = msg.chat.id;
   const coach = match[1];
@@ -829,7 +803,6 @@ bot.onText(/\/rate\s+@?(\S+)/i, async (msg, match) => {
   } catch(e) { bot.sendMessage(chatId, `❌ Try again.`); }
 });
 
-// /hottake — random hot take
 bot.onText(/\/hottake/, async (msg) => {
   const chatId = msg.chat.id;
   try {
@@ -841,7 +814,6 @@ bot.onText(/\/hottake/, async (msg) => {
   } catch(e) { bot.sendMessage(chatId, `❌ Try again.`); }
 });
 
-// /history [coach] — compare to historical flop
 bot.onText(/\/history\s+(.+)/i, async (msg, match) => {
   const chatId = msg.chat.id;
   const coach = match[1];
@@ -854,15 +826,13 @@ bot.onText(/\/history\s+(.+)/i, async (msg, match) => {
   } catch(e) { bot.sendMessage(chatId, `❌ Try again.`); }
 });
 
-// /treasury — treasury info
 bot.onText(/\/treasury/, (msg) => {
   const chatId = msg.chat.id;
   const data = loadData();
   const totalBets = data.bets?.reduce((s,b) => s+b.amount, 0) || 0;
-  bot.sendMessage(chatId, `💰 *THE COACH'S TREASURY:*\n\nWallet: \`${TREASURY_WALLET}\`\n\nTotal wagered: ${totalBets.toLocaleString()} $COACH\n\n🔗 [View on Solscan](https://solscan.io/account/${TREASURY_WALLET})\n\nBuybacks announced on X. Every transaction verifiable. $COACH 📋`, { parse_mode: 'Markdown' });
+  bot.sendMessage(chatId, `💰 *THE COACH'S TREASURY:*\n\nWallet: \`${TREASURY_WALLET}\`\n\nTotal wagered: ${totalBets.toLocaleString()} $COACH\n\n🔗 [View on Solscan](https://solscan.io/account/${TREASURY_WALLET})\n\n$COACH 📋`, { parse_mode: 'Markdown' });
 });
 
-// /burn — burn stats
 bot.onText(/\/burn/, (msg) => {
   const chatId = msg.chat.id;
   const data = loadData();
@@ -874,7 +844,6 @@ bot.onText(/\/burn/, (msg) => {
   }
 });
 
-// /price — token price (after launch)
 bot.onText(/\/price/, async (msg) => {
   const chatId = msg.chat.id;
   if (!COACH_CA) {
@@ -890,7 +859,11 @@ bot.onText(/\/price/, async (msg) => {
   } catch(e) { bot.sendMessage(chatId, `❌ Price unavailable. Check DexScreener.`); }
 });
 
-// Auto-post verdicts to Telegram when posted on X
+bot.onText(/\/help/, (msg) => {
+  const chatId = msg.chat.id;
+  bot.sendMessage(chatId, `🏟️ *THE COACH — COMMANDS:*\n\n/roast @username — destroy someone on X\n/ask [question] — press conference\n/predict — WC 2026 predictions\n/lineup [country] — ideal lineup\n/rate @coach — rate a coach /10\n/hottake — controversial opinion\n/history [coach] — compare to historical flop\n/verdict — latest verdict\n/treasury — treasury info\n/burn — burn stats\n/price — $COACH price\n\nNever coached. Never been wrong. $COACH 📋`, { parse_mode: 'Markdown' });
+});
+
 async function postVerdictToTelegram(text, competition) {
   if (!process.env.TELEGRAM_CHANNEL_ID) return;
   try {
@@ -898,50 +871,39 @@ async function postVerdictToTelegram(text, competition) {
   } catch(e) {}
 }
 
-// /help
-bot.onText(/\/help/, (msg) => {
-  const chatId = msg.chat.id;
-  bot.sendMessage(chatId, `🏟️ *THE COACH — COMMANDS:*\n\n/roast @username — destroy someone on X\n/ask [question] — press conference\n/predict — WC 2026 predictions\n/lineup [country] — ideal lineup\n/rate @coach — rate a coach /10\n/hottake — controversial opinion\n/history [coach] — compare to historical flop\n/verdict — latest verdict\n/treasury — treasury info\n/burn — burn stats\n/price — $COACH price\n\nNever coached. Never been wrong. $COACH 📋`, { parse_mode: 'Markdown' });
-});
-
-cron.schedule('*/15 * * * *', runMatchBot);          // Check matches every 15 min
-cron.schedule('0 18 * * *', postHotTake);            // Hot take 1x/day at 6pm
-cron.schedule('0 8 * * *', fetchAndPostWCNews);      // WC news 8am
-cron.schedule('0 10 * * *', fetchAndPostWCNews);     // WC news 10am
-cron.schedule('0 12 * * *', fetchAndPostWCNews);     // WC news 12pm
-cron.schedule('0 15 * * *', fetchAndPostWCNews);     // WC news 3pm
-cron.schedule('0 19 * * *', fetchAndPostWCNews);     // WC news 7pm
-cron.schedule('0 21 * * *', fetchAndPostWCNews);     // WC news 9pm
-cron.schedule('0 * * * *', generateWebsiteVerdict); // Website verdict every hour
-cron.schedule('*/5 * * * *', checkAndProcessDMs);   // Check DMs every 5 min
+// ── CRON JOBS ────────────────────────────────────────────────
+cron.schedule('*/15 * * * *', runMatchBot);
+cron.schedule('0 18 * * *', postHotTake);
+cron.schedule('0 8 * * *', fetchAndPostWCNews);
+cron.schedule('0 10 * * *', fetchAndPostWCNews);
+cron.schedule('0 12 * * *', fetchAndPostWCNews);
+cron.schedule('0 15 * * *', fetchAndPostWCNews);
+cron.schedule('0 19 * * *', fetchAndPostWCNews);
+cron.schedule('0 21 * * *', fetchAndPostWCNews);
+cron.schedule('0 * * * *', generateWebsiteVerdict);
+cron.schedule('*/5 * * * *', checkAndProcessDMs);
 
 // ── API ROUTES ───────────────────────────────────────────────
-
-// Latest posts (for website feed)
 app.get('/api/posts', (req, res) => {
   const data = loadData();
   res.json(data.posts.slice(0, 10));
 });
 
-// Upcoming matches
 app.get('/api/matches', (req, res) => {
   const data = loadData();
   res.json(data.upcomingMatches.slice(0, 6));
 });
 
-// Stats
 app.get('/api/stats', (req, res) => {
   const data = loadData();
   res.json(data.stats);
 });
 
-// Burn events
 app.get('/api/burns', (req, res) => {
   const data = loadData();
   res.json(data.burnEvents);
 });
 
-// Manual post (for testing)
 app.post('/api/post', async (req, res) => {
   const { text } = req.body;
   if (!text) return res.status(400).json({ error: 'No text provided' });
@@ -955,19 +917,16 @@ app.post('/api/post', async (req, res) => {
   res.json(result);
 });
 
-// Manual hot take trigger
 app.post('/api/hottake', async (req, res) => {
   await postHotTake();
   res.json({ success: true });
 });
 
-// Manual news trigger
 app.post('/api/news', async (req, res) => {
   await fetchAndPostWCNews();
   res.json({ success: true });
 });
 
-// Manual website verdict trigger
 app.post('/api/website-verdict', async (req, res) => {
   await generateWebsiteVerdict();
   res.json({ success: true });
@@ -978,22 +937,16 @@ const HELIUS_RPC = `https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`;
 
 async function verifyCoachTransaction(txHash, expectedWallet, expectedAmount) {
   try {
-    await new Promise(r => setTimeout(r, 3000)); // Wait for confirmation
-
+    await new Promise(r => setTimeout(r, 3000));
     const res = await axios.post(HELIUS_RPC, {
-      jsonrpc: '2.0',
-      id: 1,
+      jsonrpc: '2.0', id: 1,
       method: 'getTransaction',
       params: [txHash, { encoding: 'jsonParsed', maxSupportedTransactionVersion: 0 }]
     });
-
     const tx = res.data?.result;
     if (!tx) return { valid: false, error: 'Transaction not found' };
-
-    // Check transaction is not failed
     if (tx.meta?.err) return { valid: false, error: 'Transaction failed on-chain' };
 
-    // Check instructions for SPL token transfer to treasury
     const instructions = tx.transaction?.message?.instructions || [];
     const innerInstructions = tx.meta?.innerInstructions?.flatMap(i => i.instructions) || [];
     const allInstructions = [...instructions, ...innerInstructions];
@@ -1001,43 +954,34 @@ async function verifyCoachTransaction(txHash, expectedWallet, expectedAmount) {
     for (const ix of allInstructions) {
       const parsed = ix.parsed;
       if (!parsed) continue;
-
-      // Check for SPL token transfer
       if ((parsed.type === 'transfer' || parsed.type === 'transferChecked') && parsed.info) {
         const info = parsed.info;
         const destination = info.destination || info.account;
         const amount = parseFloat(info.amount || info.tokenAmount?.uiAmount || 0);
-
-        // Verify destination is treasury and amount matches
         if (destination === TREASURY_WALLET && amount >= expectedAmount * 0.99) {
           return { valid: true, amount, txHash };
         }
       }
     }
 
-    // Also check pre/post token balances
     const preBalances = tx.meta?.preTokenBalances || [];
     const postBalances = tx.meta?.postTokenBalances || [];
-
     for (const post of postBalances) {
       if (post.owner === TREASURY_WALLET) {
         const pre = preBalances.find(p => p.accountIndex === post.accountIndex);
         const preAmount = parseFloat(pre?.uiTokenAmount?.uiAmount || 0);
         const postAmount = parseFloat(post.uiTokenAmount?.uiAmount || 0);
         const received = postAmount - preAmount;
-
-        if (received >= expectedAmount * 0.99) {
-          return { valid: true, amount: received, txHash };
-        }
+        if (received >= expectedAmount * 0.99) return { valid: true, amount: received, txHash };
       }
     }
 
-    return { valid: false, error: 'No valid $COACH transfer to treasury found in this transaction' };
+    return { valid: false, error: 'No valid $COACH transfer to treasury found' };
   } catch (e) {
-    console.error('Helius verification error:', e.message);
     return { valid: false, error: 'Verification failed: ' + e.message };
   }
 }
+
 const WAGER_FILE = path.join(__dirname, 'wagers.json');
 const TREASURY_WALLET = 'DReFFztSXymUsNrKff4e6ozxMbQ3jdV6rCUEuuh9D3ty';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'thecoach2026';
@@ -1073,7 +1017,6 @@ function adminAuth(req, res, next) {
   next();
 }
 
-// Wager routes
 app.get('/api/wager/matches', (req, res) => res.json(WC_MATCHES.filter(m => m.status === 'open')));
 app.get('/api/wager/matches/all', (req, res) => res.json(WC_MATCHES));
 app.get('/api/wager/treasury', (req, res) => res.json({ wallet: TREASURY_WALLET }));
@@ -1088,7 +1031,6 @@ app.post('/api/wager/bet', async (req, res) => {
   const data = loadWagers();
   if (data.bets.find(b => b.txHash === txHash)) return res.status(400).json({ error: 'Transaction already used' });
 
-  // Verify transaction on Solana via Helius
   const verification = await verifyCoachTransaction(txHash, walletAddress, amount);
   if (!verification.valid) return res.status(400).json({ error: `Transaction invalid: ${verification.error}` });
 
@@ -1096,7 +1038,6 @@ app.post('/api/wager/bet', async (req, res) => {
   const bet = { id: Date.now(), matchId, matchName: `${match.homeFlag} ${match.home} vs ${match.awayFlag} ${match.away}`, outcome, amount: verification.amount || amount, odds, potentialWin: Math.floor((verification.amount || amount) * odds), walletAddress, txHash, timestamp: new Date().toISOString(), status: 'pending' };
   data.bets.push(bet);
   saveWagers(data);
-  console.log(`🎰 Verified bet: ${walletAddress.slice(0,6)} bet ${bet.amount} $COACH on ${outcome}`);
   res.json({ success: true, bet });
 });
 
@@ -1122,16 +1063,14 @@ app.post('/api/admin/settle', adminAuth, (req, res) => {
   const { matchId, result } = req.body;
   if (!matchId || !result) return res.status(400).json({ error: 'Missing matchId or result' });
   const data = loadWagers();
-  const winners = data.bets.filter(b => b.matchId === matchId && b.status === 'pending' && b.outcome === result);
   data.bets = data.bets.map(b => b.matchId === matchId && b.status === 'pending' ? { ...b, status: b.outcome === result ? 'won' : 'lost', settledAt: new Date().toISOString() } : b);
   const match = WC_MATCHES.find(m => m.id === matchId);
   if (match) match.status = 'settled';
   saveWagers(data);
-  res.json({ success: true, result, winners: winners.map(w => ({ wallet: w.walletAddress, bet: w.amount, payout: w.potentialWin, odds: w.odds })), totalPayout: winners.reduce((s,w)=>s+w.potentialWin,0) });
+  const winners = data.bets.filter(b => b.matchId === matchId && b.status === 'won');
+  res.json({ success: true, result, winners: winners.map(w => ({ wallet: w.walletAddress, bet: w.amount, payout: w.potentialWin })), totalPayout: winners.reduce((s,w)=>s+w.potentialWin,0) });
 });
 
-
-// Telegram webhook endpoint
 app.post('/telegram-webhook', (req, res) => {
   bot.processUpdate(req.body);
   res.sendStatus(200);
@@ -1141,14 +1080,12 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'online', time: new Date().toISOString() });
 });
 
-// Clear processed DMs (admin)
 app.post('/api/admin/clear-dms', adminAuth, (req, res) => {
   const data = loadData();
   const count = data.processedDMs?.length || 0;
   data.processedDMs = [];
   data.pendingRoasts = {};
   saveData(data);
-  console.log(`🧹 Cleared ${count} processed DMs`);
   res.json({ success: true, cleared: count });
 });
 
