@@ -195,10 +195,12 @@ async function claudeWithRetry(params, retries = 3) {
   }
 }
 
-async function postToTwitter(text) {
+async function postToTwitter(text, competition = '') {
   try {
     const tweet = await twitter.v2.tweet(text);
     console.log('✅ Posted:', text.substring(0, 60) + '...');
+    // Auto-post to Telegram
+    if (competition) postVerdictToTelegram(text, competition);
     return { success: true, id: tweet.data.id, text };
   } catch (e) {
     const code = e.code || e.message;
@@ -520,27 +522,16 @@ async function checkAndProcessDMs() {
     if (!data.pendingRoasts) data.pendingRoasts = {};
     const processedSet = new Set(data.processedDMs);
 
-    // Get DM events using correct endpoint
+    // Get DM events
     let dmList = [];
     try {
-      const data = loadData();
-      const params = {
+      const response = await twitter.v2.get('dm_events', {
         'dm_event.fields': 'text,sender_id,created_at,dm_conversation_id',
         'max_results': 20,
         'event_types': 'MessageCreate'
-      };
-      // Only fetch DMs newer than last processed
-      if (data.lastDmId) params['since_id'] = data.lastDmId;
-
-      const response = await twitter.v2.get('dm_events', params);
+      });
       dmList = response?.data || [];
       if (!Array.isArray(dmList)) dmList = [];
-
-      // Save latest DM ID for next run
-      if (dmList.length > 0) {
-        data.lastDmId = dmList[0].id;
-        saveData(data);
-      }
     } catch(e) {
       console.error(`📬 DM fetch error: ${e.message}`);
       return;
@@ -775,6 +766,121 @@ bot.onText(/\/start/, (msg) => {
 });
 
 bot.on('polling_error', (err) => console.error('Telegram polling error:', err.message));
+
+// /predict — WK predictions
+bot.onText(/\/predict/, async (msg) => {
+  const chatId = msg.chat.id;
+  bot.sendMessage(chatId, `📋 The Coach is calculating...`);
+  try {
+    const res = await claudeWithRetry({
+      model: 'claude-haiku-4-5-20251001', max_tokens: 400, system: COACH_PERSONA,
+      messages: [{ role: 'user', content: `Give The Coach's official World Cup 2026 predictions. Who wins each group (A-L), who wins the tournament, and who gets embarrassingly eliminated early. Be specific and brutal. End with $COACH.` }]
+    });
+    bot.sendMessage(chatId, `🏆 *THE COACH'S OFFICIAL WC 2026 PREDICTIONS:*\n\n${res.content[0].text.trim()}`, { parse_mode: 'Markdown' });
+  } catch(e) { bot.sendMessage(chatId, `❌ Try again.`); }
+});
+
+// /lineup [country] — ideal lineup
+bot.onText(/\/lineup\s+(.+)/i, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const country = match[1];
+  bot.sendMessage(chatId, `📋 The Coach is picking ${country}'s squad...`);
+  try {
+    const res = await claudeWithRetry({
+      model: 'claude-haiku-4-5-20251001', max_tokens: 300, system: COACH_PERSONA,
+      messages: [{ role: 'user', content: `Give The Coach's ideal World Cup 2026 lineup for ${country} in a 4-3-3 or 3-5-2. Name the players, explain why the actual coach got it wrong. Be brutal. End with $COACH.` }]
+    });
+    bot.sendMessage(chatId, `⚽ *THE COACH'S ${country.toUpperCase()} LINEUP:*\n\n${res.content[0].text.trim()}`, { parse_mode: 'Markdown' });
+  } catch(e) { bot.sendMessage(chatId, `❌ Try again.`); }
+});
+
+// /rate @coach — rate a coach
+bot.onText(/\/rate\s+@?(\S+)/i, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const coach = match[1];
+  try {
+    const res = await claudeWithRetry({
+      model: 'claude-haiku-4-5-20251001', max_tokens: 200, system: COACH_PERSONA,
+      messages: [{ role: 'user', content: `Rate ${coach} as a football coach out of 10. Be brutal and specific. Give the score, then explain why they don't deserve better. End with $COACH.` }]
+    });
+    bot.sendMessage(chatId, `📊 *THE COACH RATES ${coach.toUpperCase()}:*\n\n${res.content[0].text.trim()}`, { parse_mode: 'Markdown' });
+  } catch(e) { bot.sendMessage(chatId, `❌ Try again.`); }
+});
+
+// /hottake — random hot take
+bot.onText(/\/hottake/, async (msg) => {
+  const chatId = msg.chat.id;
+  try {
+    const res = await claudeWithRetry({
+      model: 'claude-haiku-4-5-20251001', max_tokens: 150, system: COACH_PERSONA,
+      messages: [{ role: 'user', content: `Give one brutal, controversial World Cup 2026 hot take. Something that will trigger football fans. Under 200 chars. End with $COACH.` }]
+    });
+    bot.sendMessage(chatId, `🔥 *HOT TAKE:*\n\n${res.content[0].text.trim()}`, { parse_mode: 'Markdown' });
+  } catch(e) { bot.sendMessage(chatId, `❌ Try again.`); }
+});
+
+// /history [coach] — compare to historical flop
+bot.onText(/\/history\s+(.+)/i, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const coach = match[1];
+  try {
+    const res = await claudeWithRetry({
+      model: 'claude-haiku-4-5-20251001', max_tokens: 250, system: COACH_PERSONA,
+      messages: [{ role: 'user', content: `Compare ${coach} to the most embarrassing coach in football history. Be specific about their tactical failures. End with $COACH.` }]
+    });
+    bot.sendMessage(chatId, `📚 *THE COACH'S HISTORICAL ANALYSIS:*\n\n${res.content[0].text.trim()}`, { parse_mode: 'Markdown' });
+  } catch(e) { bot.sendMessage(chatId, `❌ Try again.`); }
+});
+
+// /treasury — treasury info
+bot.onText(/\/treasury/, (msg) => {
+  const chatId = msg.chat.id;
+  const data = loadData();
+  const totalBets = data.bets?.reduce((s,b) => s+b.amount, 0) || 0;
+  bot.sendMessage(chatId, `💰 *THE COACH'S TREASURY:*\n\nWallet: \`${TREASURY_WALLET}\`\n\nTotal wagered: ${totalBets.toLocaleString()} $COACH\n\n🔗 [View on Solscan](https://solscan.io/account/${TREASURY_WALLET})\n\nBuybacks announced on X. Every transaction verifiable. $COACH 📋`, { parse_mode: 'Markdown' });
+});
+
+// /burn — burn stats
+bot.onText(/\/burn/, (msg) => {
+  const chatId = msg.chat.id;
+  const data = loadData();
+  const burned = data.bets?.filter(b => b.source === 'roast_request' && b.burned).reduce((s,b) => s+(b.burned||0), 0) || 0;
+  if (COACH_CA) {
+    bot.sendMessage(chatId, `🔥 *BURN STATS:*\n\nTotal burned: ${burned.toLocaleString()} $COACH\nBurn address: \`1nc1nerator11111111111111111111111111111111\`\n\nEvery roast request burns $COACH permanently. $COACH 💀`, { parse_mode: 'Markdown' });
+  } else {
+    bot.sendMessage(chatId, `🔥 Burn mechanic activates after $COACH launches on pump.fun. Coming soon. $COACH`);
+  }
+});
+
+// /price — token price (after launch)
+bot.onText(/\/price/, async (msg) => {
+  const chatId = msg.chat.id;
+  if (!COACH_CA) {
+    bot.sendMessage(chatId, `$COACH hasn't launched yet. Pump.fun soon. The Coach is loading. $COACH 📋`);
+    return;
+  }
+  try {
+    const res = await axios.get(`https://api.dexscreener.com/latest/dex/tokens/${COACH_CA}`);
+    const pair = res.data?.pairs?.[0];
+    if (pair) {
+      bot.sendMessage(chatId, `💰 *$COACH PRICE:*\n\n$${pair.priceUsd}\nMarket Cap: $${parseInt(pair.marketCap || 0).toLocaleString()}\n24h: ${pair.priceChange?.h24 || 0}%\n\n[DexScreener](${pair.url}) $COACH 📋`, { parse_mode: 'Markdown' });
+    }
+  } catch(e) { bot.sendMessage(chatId, `❌ Price unavailable. Check DexScreener.`); }
+});
+
+// Auto-post verdicts to Telegram when posted on X
+async function postVerdictToTelegram(text, competition) {
+  if (!process.env.TELEGRAM_CHANNEL_ID) return;
+  try {
+    await bot.sendMessage(process.env.TELEGRAM_CHANNEL_ID, `📋 *THE COACH:*\n\n${text}\n\n_${competition}_`, { parse_mode: 'Markdown' });
+  } catch(e) {}
+}
+
+// /help
+bot.onText(/\/help/, (msg) => {
+  const chatId = msg.chat.id;
+  bot.sendMessage(chatId, `🏟️ *THE COACH — COMMANDS:*\n\n/roast @username — destroy someone on X\n/ask [question] — press conference\n/predict — WC 2026 predictions\n/lineup [country] — ideal lineup\n/rate @coach — rate a coach /10\n/hottake — controversial opinion\n/history [coach] — compare to historical flop\n/verdict — latest verdict\n/treasury — treasury info\n/burn — burn stats\n/price — $COACH price\n\nNever coached. Never been wrong. $COACH 📋`, { parse_mode: 'Markdown' });
+});
 
 cron.schedule('*/15 * * * *', runMatchBot);          // Check matches every 15 min
 cron.schedule('0 18 * * *', postHotTake);            // Hot take 1x/day at 6pm
