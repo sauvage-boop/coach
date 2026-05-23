@@ -31,7 +31,7 @@ const twitter = new TwitterApi({
 
 // ── TELEGRAM BOT ─────────────────────────────────────────────
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN || '8968875555:AAEA7QwHOB_Cfc0_ge_Gt-LqE3tJpGKhkoE';
-const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
+const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: false });
 
 // ── DATA STORE (JSON file — no DB needed) ───────────────────
 const DATA_FILE = path.join(__dirname, 'data.json');
@@ -1111,6 +1111,12 @@ app.post('/api/admin/settle', adminAuth, (req, res) => {
 });
 
 
+// Telegram webhook endpoint
+app.post('/telegram-webhook', (req, res) => {
+  bot.processUpdate(req.body);
+  res.sendStatus(200);
+});
+
 app.get('/api/health', (req, res) => {
   res.json({ status: 'online', time: new Date().toISOString() });
 });
@@ -1132,6 +1138,13 @@ app.listen(PORT, () => {
   console.log(`\n🏟️  THE COACH BACKEND — ONLINE`);
   console.log(`📡 API running on http://localhost:${PORT}`);
   console.log(`⚽ Bot checking matches every 15 minutes\n`);
+  
+  // Set Telegram webhook
+  const webhookUrl = `https://www.thecoachonchain.com/telegram-webhook`;
+  bot.setWebHook(webhookUrl).then(() => {
+    console.log(`📱 Telegram webhook set: ${webhookUrl}`);
+  }).catch(e => console.error('Telegram webhook error:', e.message));
+
   runMatchBot();
-  generateWebsiteVerdict(); // Generate first verdict on startup
+  generateWebsiteVerdict();
 });
