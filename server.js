@@ -216,12 +216,14 @@ async function postToTwitter(text, competition = '') {
     return { success: true, id: tweet.data.id, text };
   } catch (e) {
     const code = e.code || e.message;
-    if (String(code).includes('403')) {
-      console.log('⏸️  X rate limited (403) — skipping post, will retry next cycle');
-    } else if (String(code).includes('429')) {
-      console.log('⏸️  X too many requests (429) — skipping post');
-    } else {
-      console.error('❌ Twitter error:', e.message);
+    const errStr = String(e.message || '');
+    console.error('❌ Twitter error full:', JSON.stringify(e?.data || e.message));
+    if (errStr.includes('403') || String(code).includes('403')) {
+      console.log('⏸️  X 403 — duplicate or forbidden');
+    } else if (errStr.includes('429') || String(code).includes('429')) {
+      console.log('⏸️  X 429 — rate limited');
+    } else if (errStr.includes('duplicate')) {
+      console.log('⏸️  X duplicate content — skipping');
     }
     return { success: false, error: e.message, text };
   }
@@ -484,20 +486,35 @@ async function generateWebsiteVerdict() {
                        newsText.toLowerCase().includes('squad') ? 'WC 2026 Squad News' :
                        newsText.toLowerCase().includes('injury') ? 'WC 2026 Injury News' : 'WC 2026 News';
 
+    // Dedup check before posting
     const data = loadData();
-    data.posts.unshift({
+    const verdictKey = verdict.substring(0, 50);
+    if (data.postedNewsKeys.includes(verdictKey)) {
+      console.log('🌐 Website verdict duplicate — skipping');
+      return;
+    }
+    data.postedNewsKeys.push(verdictKey);
+    if (data.postedNewsKeys.length > 200) data.postedNewsKeys = data.postedNewsKeys.slice(-200);
+    saveData(data);
+
+    // Post to X
+    const result = await postToTwitter(verdict, competition);
+
+    const freshData = loadData();
+    freshData.posts.unshift({
       id: Date.now(),
-      tweetId: null,
+      tweetId: result.id || null,
       text: verdict,
       match: null,
       competition,
       timestamp: new Date().toISOString(),
-      posted: false,
+      posted: result.success,
       source: 'website'
     });
-    if (data.posts.length > 50) data.posts = data.posts.slice(0, 50);
-    saveData(data);
-    console.log('🌐 Website verdict saved:', verdict.substring(0, 80) + '...');
+    if (freshData.posts.length > 50) freshData.posts = freshData.posts.slice(0, 50);
+    if (result.success) freshData.stats.totalPosts++;
+    saveData(freshData);
+    console.log(`🌐 Website verdict ${result.success ? 'posted to X ✅' : 'saved (X failed) ⚠️'}:`, verdict.substring(0, 80) + '...');
   } catch (e) {
     console.error('Website verdict error:', e.message);
   }
@@ -665,35 +682,48 @@ async function executeRoast(dm, targetHandle, convId, burnedAmount) {
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 150,
       system: COACH_PERSONA,
-      messages: [{ role: 'user', content: `Roast @${targetHandle} HARD as The Coach. Brutal, specific, degen.\n\n${targetContext ? `Context: ${targetContext}` : ''}\n\nONE tweet. Under 260 chars. Must include @${targetHandle} early. Must end with $COACH. No intro.` }]
+      messages: [{ role: 'user', content: `Roast @${targetHandle} HARD as The Coach. Brutal, specific, degen.\n\n${targetContext ? `Context: ${targetContext}` : ''}\n\nONE tweet. Under 260 chars. Must mention @${targetHandle} somewhere in the middle or end — NEVER start the tweet with @. Start with a statement or observation. Must end with $COACH. No intro.` }]
     });
 
     let roastText = roastMsg.content[0]?.text?.trim();
     if (!roastText || !roastText.includes('$COACH')) return;
+    // Never start with @ — prepend if needed
+    if (roastText.startsWith('@')) roastText = `The Coach sees @${targetHandle}. ` + roastText;
     if (roastText.length > 280) roastText = roastText.substring(0, 277) + '...';
 
     const posted = await postToTwitter(roastText);
 
-    if (posted.success) {
-      const replyText = burnedAmount
-        ? `Done. ${burnedAmount.toLocaleString()} $COACH burned forever. The Coach has spoken. Check the timeline. 🔥`
-        : `Done. The Coach has spoken. Check the timeline.\n\n⚠️ Coming soon: roasts will cost $COACH — permanently burned. Buy $COACH on pump.fun when it drops. $COACH 📋`;
+    const replyText = posted.success
+      ? (burnedAmount
+          ? `Done. ${burnedAmount.toLocaleString()} $COACH burned forever. The Coach has spoken. Check the timeline. 🔥`
+          : `Done. The Coach has spoken. Check the timeline.\n\nhttps://x.com/thecoachonchain $COACH 📋`)
+      : `The Coach spoke but X was misbehaving. Here's the verdict anyway:\n\n"${roastText}"`;
 
-      try { await twitter.v2.sendDmInConversation(convId, { text: replyText }); } catch(e) {}
+    try { await twitter.v2.sendDmInConversation(convId, { text: replyText }); } catch(e) {}
 
-      const freshData = loadData();
-      freshData.posts.unshift({ id: Date.now(), tweetId: posted.id, text: roastText, match: null, competition: `Roast: @${targetHandle}`, timestamp: new Date().toISOString(), posted: true, source: 'roast_request' });
-      if (freshData.posts.length > 50) freshData.posts = freshData.posts.slice(0, 50);
-      freshData.stats.totalPosts++;
-      saveData(freshData);
-    }
+    // Always save to website feed
+    const freshData = loadData();
+    freshData.posts.unshift({
+      id: Date.now(),
+      tweetId: posted.id || null,
+      text: roastText,
+      match: null,
+      competition: `Roast: @${targetHandle}`,
+      timestamp: new Date().toISOString(),
+      posted: posted.success,
+      source: 'roast_request'
+    });
+    if (freshData.posts.length > 50) freshData.posts = freshData.posts.slice(0, 50);
+    freshData.stats.totalPosts++;
+    saveData(freshData);
+    console.log(`🔥 Roast @${targetHandle} — X: ${posted.success ? '✅' : '❌'} | Website: ✅`);
   } catch(e) {
     console.error(`❌ executeRoast error:`, e.message);
   }
 }
 
 // ── TELEGRAM BOT COMMANDS ────────────────────────────────────
-bot.onText(/\/roast\s+@?(\S+)/i, async (msg, match) => {
+bot.onText(/(?:\/roast|@ROAST)\s+@?(\S+)/i, async (msg, match) => {
   const chatId = msg.chat.id;
   const targetHandle = match[1].replace('@', '');
   bot.sendMessage(chatId, `🎯 The Coach is loading up on @${targetHandle}... $COACH`);
@@ -712,7 +742,7 @@ bot.onText(/\/roast\s+@?(\S+)/i, async (msg, match) => {
     model: 'claude-haiku-4-5-20251001',
     max_tokens: 150,
     system: COACH_PERSONA,
-    messages: [{ role: 'user', content: `Roast @${targetHandle} HARD as The Coach.\n\n${targetContext ? `Context: ${targetContext}` : ''}\n\nONE tweet. Under 260 chars. Must include @${targetHandle} early. Must end with $COACH. No intro.` }]
+    messages: [{ role: 'user', content: `Roast @${targetHandle} HARD as The Coach.\n\n${targetContext ? `Context: ${targetContext}` : ''}\n\nONE tweet. Under 260 chars. Must mention @${targetHandle} somewhere in the middle or end — NEVER start with @. Start with a statement. Must end with $COACH. No intro.` }]
   });
 
   let roastText = roastMsg.content[0]?.text?.trim();
@@ -720,18 +750,22 @@ bot.onText(/\/roast\s+@?(\S+)/i, async (msg, match) => {
     bot.sendMessage(chatId, `❌ The Coach couldn't roast @${targetHandle} right now. Try again.`);
     return;
   }
+  if (roastText.startsWith('@')) roastText = `The Coach sees @${targetHandle}. ` + roastText;
   if (roastText.length > 280) roastText = roastText.substring(0, 277) + '...';
 
   const posted = await postToTwitter(roastText);
+
+  // Always save to website
+  const data = loadData();
+  data.posts.unshift({ id: Date.now(), tweetId: posted.id || null, text: roastText, match: null, competition: `Roast: @${targetHandle}`, timestamp: new Date().toISOString(), posted: posted.success, source: 'telegram_roast' });
+  if (data.posts.length > 50) data.posts = data.posts.slice(0, 50);
+  data.stats.totalPosts++;
+  saveData(data);
+
   if (posted.success) {
     bot.sendMessage(chatId, `🔥 Posted on X:\n\n"${roastText}"\n\nhttps://x.com/thecoachonchain`);
-    const data = loadData();
-    data.posts.unshift({ id: Date.now(), tweetId: posted.id, text: roastText, match: null, competition: `Roast: @${targetHandle}`, timestamp: new Date().toISOString(), posted: true, source: 'telegram_roast' });
-    if (data.posts.length > 50) data.posts = data.posts.slice(0, 50);
-    data.stats.totalPosts++;
-    saveData(data);
   } else {
-    bot.sendMessage(chatId, `⏸️ X is rate limited. Roast saved:\n\n"${roastText}"`);
+    bot.sendMessage(chatId, `⚠️ X failed but saved on website:\n\n"${roastText}"\n\nError: ${posted.error}`);
   }
 });
 
