@@ -1,6 +1,6 @@
 // ============================================================
 // THE COACH — Complete Backend Server
-// Express API + Twitter Bot + Football Data + Burn Mechanic
+// Express API + Twitter Bot + Football Data + Burn Mechanic + Telegram
 // ============================================================
 
 require('dotenv').config();
@@ -10,6 +10,7 @@ const cron = require('node-cron');
 const axios = require('axios');
 const Anthropic = require('@anthropic-ai/sdk');
 const { TwitterApi } = require('twitter-api-v2');
+const TelegramBot = require('node-telegram-bot-api');
 const fs = require('fs');
 const path = require('path');
 
@@ -27,6 +28,10 @@ const twitter = new TwitterApi({
   accessToken: process.env.X_ACCESS_TOKEN,
   accessSecret: process.env.X_ACCESS_SECRET,
 });
+
+// ── TELEGRAM BOT ─────────────────────────────────────────────
+const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN || '8968875555:AAEA7QwHOB_Cfc0_ge_Gt-LqE3tJpGKhkoE';
+const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
 
 // ── DATA STORE (JSON file — no DB needed) ───────────────────
 const DATA_FILE = path.join(__dirname, 'data.json');
@@ -678,6 +683,98 @@ async function executeRoast(dm, targetHandle, convId, burnedAmount) {
     console.error(`❌ executeRoast error for @${targetHandle}:`, e.message);
   }
 }
+
+// ── TELEGRAM BOT COMMANDS ────────────────────────────────────
+
+// /roast @username — roast someone and post on X
+bot.onText(/\/roast\s+@?(\S+)/i, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const targetHandle = match[1].replace('@', '');
+  const requesterName = msg.from.first_name || 'Someone';
+
+  bot.sendMessage(chatId, `🎯 The Coach is loading up on @${targetHandle}... $COACH`);
+
+  let targetContext = '';
+  try {
+    const targetUser = await twitter.v2.userByUsername(targetHandle, { 'user.fields': ['description', 'name'] });
+    if (targetUser.data) {
+      const tweets = await twitter.v2.userTimeline(targetUser.data.id, { max_results: 5, exclude: ['retweets', 'replies'] });
+      const recentTweets = tweets.data?.data?.map(t => t.text).join(' | ') || '';
+      targetContext = `Name: ${targetUser.data.name}\nHandle: @${targetHandle}\nRecent tweets: ${recentTweets}`;
+    }
+  } catch(e) {}
+
+  const roastMsg = await claudeWithRetry({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 150,
+    system: COACH_PERSONA,
+    messages: [{ role: 'user', content: `Roast @${targetHandle} HARD as The Coach. Brutal, specific, degen.\n\n${targetContext ? `Context: ${targetContext}` : ''}\n\nONE tweet. Under 260 chars. Must end with $COACH. No intro.` }]
+  });
+
+  let roastText = roastMsg.content[0]?.text?.trim();
+  if (!roastText || !roastText.includes('$COACH')) {
+    bot.sendMessage(chatId, `❌ The Coach couldn't roast @${targetHandle} right now. Try again.`);
+    return;
+  }
+  if (roastText.length > 280) roastText = roastText.substring(0, 277) + '...';
+
+  // Post on X
+  const posted = await postToTwitter(roastText);
+  if (posted.success) {
+    bot.sendMessage(chatId, `🔥 Posted on X:\n\n"${roastText}"\n\nhttps://x.com/thecoachonchain`);
+
+    const data = loadData();
+    data.posts.unshift({ id: Date.now(), tweetId: posted.id, text: roastText, match: null, competition: `Roast: @${targetHandle}`, timestamp: new Date().toISOString(), posted: true, source: 'telegram_roast' });
+    if (data.posts.length > 50) data.posts = data.posts.slice(0, 50);
+    data.stats.totalPosts++;
+    saveData(data);
+  } else {
+    bot.sendMessage(chatId, `⏸️ X is rate limited. Roast saved, will post soon:\n\n"${roastText}"`);
+  }
+});
+
+// /ask [question] — press conference mode
+bot.onText(/\/ask\s+(.+)/i, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const question = match[1];
+  const askerName = msg.from.first_name || 'Someone';
+
+  try {
+    const answerMsg = await claudeWithRetry({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 300,
+      system: COACH_PERSONA,
+      messages: [{ role: 'user', content: `You are at a press conference. ${askerName} asks: "${question}"\n\nAnswer as The Coach — arrogant, confident, entertaining. 2-4 sentences. End with $COACH.` }]
+    });
+
+    const answer = answerMsg.content[0]?.text?.trim();
+    if (answer) {
+      bot.sendMessage(chatId, `📋 *The Coach responds:*\n\n${answer}`, { parse_mode: 'Markdown' });
+    }
+  } catch(e) {
+    bot.sendMessage(chatId, `❌ The Coach is busy. Try again.`);
+  }
+});
+
+// /verdict — latest verdict from the website feed
+bot.onText(/\/verdict/, async (msg) => {
+  const chatId = msg.chat.id;
+  const data = loadData();
+  const latest = data.posts?.[0];
+  if (latest) {
+    bot.sendMessage(chatId, `📋 *Latest from The Coach:*\n\n${latest.text}`, { parse_mode: 'Markdown' });
+  } else {
+    bot.sendMessage(chatId, `No verdicts yet. The Coach is watching. $COACH`);
+  }
+});
+
+// /start — welcome message
+bot.onText(/\/start/, (msg) => {
+  const chatId = msg.chat.id;
+  bot.sendMessage(chatId, `🏟️ *THE COACH is here.*\n\nNever coached. Never been wrong.\n\n📋 Commands:\n/roast @username — destroy someone publicly on X\n/ask [question] — press conference with The Coach\n/verdict — latest verdict\n\nRoast requests cost $COACH after launch. For now — on the house. $COACH`, { parse_mode: 'Markdown' });
+});
+
+bot.on('polling_error', (err) => console.error('Telegram polling error:', err.message));
 
 cron.schedule('*/15 * * * *', runMatchBot);          // Check matches every 15 min
 cron.schedule('0 18 * * *', postHotTake);            // Hot take 1x/day at 6pm
