@@ -784,13 +784,15 @@ bot.onText(/\/lineup\s+(.+)/i, async (msg, match) => {
   bot.sendMessage(chatId, `📋 The Coach is researching ${country}'s actual squad...`);
   try {
     const res = await claudeWithRetry({
-      model: 'claude-haiku-4-5-20251001', max_tokens: 500,
+      model: 'claude-haiku-4-5-20251001', max_tokens: 350,
       tools: [{ type: 'web_search_20250305', name: 'web_search' }],
-      messages: [{ role: 'user', content: `Search for the official FIFA World Cup 2026 squad of ${country}. Then as THE COACH give the ideal lineup in a 4-3-3 or 3-5-2 using ONLY real players from that actual squad. Be brutal about why the real coach got it wrong. End with $COACH.` }]
+      messages: [{ role: 'user', content: `Search for the official FIFA World Cup 2026 squad of ${country}. Then as THE COACH give the ideal starting 11 in a 4-3-3 or 3-5-2 using ONLY real players from that squad. Keep it SHORT — max 600 characters total. Name the 11 players, one brutal line about why the coach got it wrong. End with $COACH.` }]
     });
     const text = res.content.filter(b => b.type === 'text').map(b => b.text).join(' ').trim();
     if (text) {
-      bot.sendMessage(chatId, `⚽ *THE COACH'S ${country.toUpperCase()} LINEUP:*\n\n${text}`, { parse_mode: 'Markdown' });
+      const header = `⚽ *THE COACH'S ${country.toUpperCase()} LINEUP:*\n\n`;
+      const truncated = text.length > 3900 ? text.substring(0, 3897) + '...' : text;
+      bot.sendMessage(chatId, header + truncated, { parse_mode: 'Markdown' });
     }
   } catch(e) { bot.sendMessage(chatId, `❌ Try again.`); }
 });
