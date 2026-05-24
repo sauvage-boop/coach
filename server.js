@@ -366,7 +366,7 @@ async function fetchAndPostWCNews() {
       tools: [{ type: 'web_search_20250305', name: 'web_search' }],
       messages: [{
         role: 'user',
-        content: `Search for FIFA World Cup 2026 news. Find a DIFFERENT story each time — squad selections, player calls, coach tactics, group draws, injuries, controversies. Must be specifically about WC 2026 national teams. NO club football. NO local leagues. NO non-WC sports. ${excludeText} Return ONE story: headline + 1 sentence only.`
+        content: `Search for FIFA World Cup 2026 news from today. ONLY national teams preparing for the tournament — squad selections, injuries to key players, coach tactics, group stage previews, player call-ups. STRICT RULES: NO club football, NO domestic leagues, NO Champions League, NO local cups, NO non-WC sports. Must contain 'World Cup 2026' or 'WC 2026' in the story. ${excludeText} Return ONE story: headline + 1 sentence only.`
       }]
     });
 
@@ -374,7 +374,7 @@ async function fetchAndPostWCNews() {
     if (!newsText || newsText.length < 20) return;
 
     // WC keyword filter
-    const wcKeywords = ['world cup', 'wc 2026', 'squad', 'fifa', 'national team', 'selection', '2026', 'coach', 'manager'];
+    const wcKeywords = ['world cup 2026', 'wc 2026', 'fifa 2026', 'world cup squad', 'national team 2026', 'world cup group'];
     const isWC = wcKeywords.some(k => newsText.toLowerCase().includes(k));
     if (!isWC) { console.log('📰 Skipping non-WC news'); return; }
 
