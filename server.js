@@ -785,7 +785,7 @@ bot.onText(/\/lineup\s+(.+)/i, async (msg, match) => {
   try {
     const res = await claudeWithRetry({
       model: 'claude-haiku-4-5-20251001', max_tokens: 300, system: COACH_PERSONA,
-      messages: [{ role: 'user', content: `Give The Coach's ideal World Cup 2026 lineup for ${country} in a 4-3-3 or 3-5-2. Name the players, explain why the actual coach got it wrong. Be brutal. End with $COACH.` }]
+      messages: [{ role: 'user', content: `Give The Coach's ideal World Cup 2026 lineup for ${country} in a 4-3-3 or 3-5-2. ONLY use real players who actually play for ${country}'s national team — no players from other countries. Name the players, explain why the actual coach got it wrong. Be brutal. End with $COACH.` }]
     });
     bot.sendMessage(chatId, `⚽ *THE COACH'S ${country.toUpperCase()} LINEUP:*\n\n${res.content[0].text.trim()}`, { parse_mode: 'Markdown' });
   } catch(e) { bot.sendMessage(chatId, `❌ Try again.`); }
