@@ -781,13 +781,17 @@ bot.onText(/\/predict/, async (msg) => {
 bot.onText(/\/lineup\s+(.+)/i, async (msg, match) => {
   const chatId = msg.chat.id;
   const country = match[1];
-  bot.sendMessage(chatId, `📋 The Coach is picking ${country}'s squad...`);
+  bot.sendMessage(chatId, `📋 The Coach is researching ${country}'s actual squad...`);
   try {
     const res = await claudeWithRetry({
-      model: 'claude-haiku-4-5-20251001', max_tokens: 300, system: COACH_PERSONA,
-      messages: [{ role: 'user', content: `Give The Coach's ideal World Cup 2026 lineup for ${country} in a 4-3-3 or 3-5-2. ONLY use real players who actually play for ${country}'s national team — no players from other countries. Name the players, explain why the actual coach got it wrong. Be brutal. End with $COACH.` }]
+      model: 'claude-haiku-4-5-20251001', max_tokens: 500,
+      tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+      messages: [{ role: 'user', content: `Search for the official FIFA World Cup 2026 squad of ${country}. Then as THE COACH give the ideal lineup in a 4-3-3 or 3-5-2 using ONLY real players from that actual squad. Be brutal about why the real coach got it wrong. End with $COACH.` }]
     });
-    bot.sendMessage(chatId, `⚽ *THE COACH'S ${country.toUpperCase()} LINEUP:*\n\n${res.content[0].text.trim()}`, { parse_mode: 'Markdown' });
+    const text = res.content.filter(b => b.type === 'text').map(b => b.text).join(' ').trim();
+    if (text) {
+      bot.sendMessage(chatId, `⚽ *THE COACH'S ${country.toUpperCase()} LINEUP:*\n\n${text}`, { parse_mode: 'Markdown' });
+    }
   } catch(e) { bot.sendMessage(chatId, `❌ Try again.`); }
 });
 
